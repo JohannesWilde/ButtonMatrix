@@ -211,6 +211,24 @@
 	\end{tabular}
 \end{table}
 
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \shiftRegisterName\ and their respective connections.}
+	\label{tab:shiftregisterConnections}
+	\begin{tabular}{c|l}
+		\shiftRegisterName\ pin  & connected to \\\hline
+		\vcc & \vccPeriphery\\
+		\ground & \ground\\
+		\serialIn & \devicePinConcatenation{\atmegathreetwoeightp}{D2}\\
+		\invertPin{\outputEnable} & \devicePinConcatenation{\atmegathreetwoeightp}{D3}\\
+		\shiftRegisterClockOut & \devicePinConcatenation{\atmegathreetwoeightp}{D4}\\
+		\shiftRegisterClockIn & \devicePinConcatenation{\atmegathreetwoeightp}{D5}\\
+		\invertPin{\shiftRegisterClear} & \devicePinConcatenation{\atmegathreetwoeightp}{D6}\\
+		$\shiftRegisterInternalBit_{7}$ & \devicePinConcatenation{$\shiftRegisterName^{\prime}$}{\serialIn} / \notConnected\\
+		$\shiftRegisterExternalBit_{i}$ & $\pinOut_j$-transistor base
+	\end{tabular}
+\end{table}
+
 
 
 \pagebreak
