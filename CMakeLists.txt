@@ -20,9 +20,9 @@ cmake_minimum_required(VERSION 2.8)
 # tools to beused for programming the AVR
 ##########################################################################
 set(AVR_UPLOADTOOL avrdude)
-set(AVR_PROGRAMMER arduino)
+set(AVR_PROGRAMMER avrisp)
 set(AVR_UPLOADTOOL_PORT /dev/ttyUSB0)
-set(AVR_UPLOADTOOL_BAUDRATE 115200)
+set(AVR_UPLOADTOOL_BAUDRATE 19200)
 
 ##########################################################################
 # AVR and fuses needs to be set
@@ -38,7 +38,7 @@ include(generic-gcc-avr.cmake)
 ##########################################################################
 # name your project
 ##########################################################################
-project(DeviceTester)
+project(ButtonMatrix)
 
 ##########################################################################
 # status messages
