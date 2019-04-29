@@ -229,6 +229,24 @@
 	\end{tabular}
 \end{table}
 
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \parallelLoadName\ and their respective connections.}
+	\label{tab:parallelLoadConnections}
+	\begin{tabular}{c|l}
+		\parallelLoadName\ pin  & connected to \\\hline
+		\vcc & \vccPeriphery\\
+		\ground & \ground\\
+		\invertPin{\parallelLoadParallelLoad} & \devicePinConcatenation{\atmegathreetwoeightp}{C3}\\
+		\parallelLoadClock & \devicePinConcatenation{\atmegathreetwoeightp}{C2}\\
+		\parallelLoadSerialOut & \devicePinConcatenation{\atmegathreetwoeightp}{C4}\\
+		\invertPin{\parallelLoadSerialOut} & \notConnected\\
+		\parallelLoadSerialIn & \devicePinConcatenation{$\parallelLoadName^{\prime}$}{\parallelLoadSerialOut} / \ground\\
+		\invertPin{\parallelLoadClockEnable} & \ground\\
+		$\parallelLoadExternalBit_i$ & \devicePinConcatenation{\latchName}{$\latchOutput_i$}\\
+	\end{tabular}
+\end{table}
+
 
 
 \pagebreak
