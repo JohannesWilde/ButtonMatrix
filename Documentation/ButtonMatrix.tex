@@ -307,7 +307,7 @@ For better understandability however some general remarks:
 	\item The last device in those concatenations is somewhat special, insofar as that for \shiftRegisterName\ \shiftRegisterSerialOut\ is \notConnected\ and for \parallelLoadName\ \parallelLoadSerialIn\ is connected to \ground.\\
 	And for the first device \shiftRegisterName\ \shiftRegisterSerialIn\ is connected to \devicePinConcatenation{\atmegathreetwoeightp}{D2}\ and for \parallelLoadName\ \parallelLoadSerialOut\ is connected to \devicePinConcatenation{\atmegathreetwoeightp}{C4}.
 	\item The connection of the \shiftRegisterName\ to the \pinOut\ is rather straightforward: the first output of the first shiftregister in the concatenation is connected to the first \pinOut\ and the last output of the last shiftregister in the concatenation is connected to the last \pinOut.
-	\item For \pinIn\ this is somewhat more complicated for \textbf{Revision 1}:\\
+	\item For \pinIn\ this is somewhat more complicated:\\
 \begin{center}
 	\begin{tabular}{c|c}
 		\parallelLoadName\ pin & \pinIn\ pin \\\hline
