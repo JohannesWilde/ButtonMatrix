@@ -31,6 +31,7 @@
 %\usepackage{booktabs} % Tabellen
 %\usepackage{pdfpages}
 \usepackage{float}
+\usepackage{listings}
 
 \usepackage{enumitem}
 %\setlist[description]{font=\normalfont}
@@ -70,6 +71,10 @@
 \newcommand{\notConnected}{\text{NC}}
 \newcommand{\signalHigh}{HIGH}
 \newcommand{\signalLow}{LOW}
+\newcommand{\mosi}{MOSI}
+\newcommand{\miso}{MISO}
+\newcommand{\reset}{Reset}
+\newcommand{\clock}{CLK}
 
 % shift-register specific
 \newcommand{\shiftRegisterClockOut}{RCLK}
@@ -287,7 +292,7 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 
 \subsection{LED}
 
-\begin{figure}[h!]
+\begin{figure}[H]
     \centering
     \begin{tikzpicture}
         \begin{scope}[scale=.5]
@@ -308,7 +313,7 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 
 \subsection{npn-Transistor}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 	\centering
 	\begin{tikzpicture}
 		\begin{scope}[scale=.45]
@@ -331,5 +336,40 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 \end{figure}
 
 \subsection{Periphery}
+
+
+\section{SPI-Programming}
+
+The Atmega 328p can be programmed using the serial peripheral interface [SPI].
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}[scale=1]
+	\begin{scope}
+		\draw (-1,2) ++(-.25,0) node[anchor=east] {a)};
+		\foreach \xCoord/\yCoord/\pinName in {0/0/\ground, 1/0/\mosi, 2/0/\vcc, 0/1/\reset, 1/1/\clock, 2/1/\miso}
+		{
+			\filldraw[color=black] (\xCoord, \yCoord) ++(-.1, -.1) rectangle ++(.2,.2) ++(-.1,0) node[anchor=south] {\pinName};
+		}
+		\draw[thick] (-1,-1) -- ++(0,3) -- ++(4,0) -- ++(0,-3) -- ++(-1.25,0) -- ++(0,-.75) -- ++(-1.5,0) -- ++(0,.75) -- ++(-1.25,0);
+	\end{scope}
+	\begin{scope}[xscale=-1, shift={(-9,0)}]
+		\draw (4,2) ++(.25,0) node[anchor=west] {b)};
+		\foreach \xCoord/\yCoord/\pinName in {0/0/\ground, 1/0/\mosi, 2/0/\vcc, 0/1/\reset, 1/1/\clock, 2/1/\miso}
+		{
+			\draw (\xCoord, \yCoord) ++(-.1, -.1) rectangle ++(.2,.2) ++(-.1,0) node[anchor=south] {\pinName};
+		}
+		\draw[thick] (-1,-1) -- ++(0,3) -- ++(4,0) -- ++(0,-3) -- ++(-1.25,0) -- ++(0,-.75) -- ++(-1.5,0) -- ++(0,.75) -- ++(-1.25,0);
+	\end{scope}
+	\end{tikzpicture}
+	\caption{SPI connectors - a) connector, b) cable.}
+	\label{fig:SPIconnector}
+\end{figure}
+
+I used an Arduino Uno programmed with the \enquote{Arduino ISP} sketch [under Examples in the Arduino IDE]  to program my separate Atmega 328p.
+
+In order for that to work one will have to keep the \reset\ pin of the programming Arduino Uno \signalHigh\ with a capacitor and connect the \reset\ pin of the device to be programmed with the pin as specified in the \enquote{Arduino ISP} sketch via \lstinline[language=C]!#define RESET 10! [this being pin D10 per default].
+
+Other than that each pin of the programmer will have to be connected with the pin of the same name of the programmee [i.e.\ e.g.\ \mosi -programmer $\rightarrow$ \mosi -programmee].
 
 \end{document}
