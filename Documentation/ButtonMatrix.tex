@@ -84,6 +84,7 @@
 \newcommand{\xtal}{XTAL}
 
 % shift-register specific
+\newcommand{\shiftRegisterName}{74HC595}
 \newcommand{\shiftRegisterClockOut}{RCLK}
 \newcommand{\shiftRegisterClockIn}{SRCLK}
 \newcommand{\shiftRegisterClear}{SRCLR}
@@ -94,6 +95,7 @@
 \newcommand{\shiftRegisterOutputEnable}{\OutputEnable} % Todo: check nested commands!
 
 % parallel-load specific
+\newcommand{\parallelLoadName}{74HC165}
 \newcommand{\parallelLoadParallelLoad}{PL}
 \newcommand{\parallelLoadClock}{CP}
 \newcommand{\parallelLoadClockEnable}{CE}
@@ -103,6 +105,7 @@
 \newcommand{\parallelLoadSerialOut}{$\parallelLoadInternalBit_{7}$}
 
 % r/s-latch specific
+\newcommand{\latchName}{CD4043B}
 \newcommand{\latchReset}{R}
 \newcommand{\latchSet}{S}
 \newcommand{\latchOutput}{Q}
@@ -205,13 +208,13 @@
 The bracketed names specify functionality assigned to the respective pins by the underlying hardware design. If one would want, these can be reconfigured for different use cases however.
 
 
-\subsection{74HC595 - 8-bit Shift Register}
+\subsection{\shiftRegisterName\ - 8-bit Shift Register}
 
 \begin{figure}[h!]
 	\centering
 	\begin{tikzpicture}[scale=.37]
 	
-		\renewcommand{\icLabel}{\large 74HC595}
+		\renewcommand{\icLabel}{\large \shiftRegisterName}
 		
 		\renewcommand{\pinNamesLeft}{0/$\shiftRegisterExternalBit_1$, 1/$\shiftRegisterExternalBit_2$, 2/$\shiftRegisterExternalBit_3$, 3/$\shiftRegisterExternalBit_4$, 4/$\shiftRegisterExternalBit_5$, 5/$\shiftRegisterExternalBit_6$, 6/$\shiftRegisterExternalBit_7$, 7/\ground} % 0 up to \pinCountPerSide-1
 		\renewcommand{\pinNamesRight}{8/\shiftRegisterSerialOut, 9/\invertPin{\shiftRegisterClear}, 10/\shiftRegisterClockIn, 11/\shiftRegisterClockOut, 12/\invertPin{\outputEnable}, 13/\shiftRegisterSerialIn, 14/$\shiftRegisterExternalBit_0$, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1
@@ -231,7 +234,7 @@ The bracketed names specify functionality assigned to the respective pins by the
 			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
 		\end{scope}
 	\end{tikzpicture}
-    \caption{Schematic of the 8-bit shift register 74HC595.}
+    \caption{Schematic of the 8-bit shift register \shiftRegisterName.}
     \label{fig:shiftRegister}
 \end{figure}
 Working principle:\\
@@ -245,7 +248,7 @@ A \signalLow\ on \invertPin{\shiftRegisterClear}\ will set $\shiftRegisterIntern
 $\shiftRegisterExternalBit_i$ - Output $i$; \ground\ - Ground; \shiftRegisterSerialOut\ - Serial output; \invertPin{\shiftRegisterClear} - Clear internal shift-register on \signalLow; \shiftRegisterClockOut\ - Copy internal to external shift-register; \shiftRegisterClockIn\ - shift in \serialIn\ on rising edge; \invertPin{\outputEnable} - Output Enable; \serialIn\ - Serial input; \vcc\ - Supply Voltage.
 %\newpage
 
-\subsection{74HC165 - 8-bit parrallel in, serial out register}
+\subsection{\parallelLoadName\ - 8-bit parrallel in, serial out register}
 
 \hspace*{99cm}\textcolor{white}{\invertPin{\parallelLoadSerialOut}}\\[-24pt]
 
@@ -253,7 +256,7 @@ $\shiftRegisterExternalBit_i$ - Output $i$; \ground\ - Ground; \shiftRegisterSer
 	\centering
 	\begin{tikzpicture}[scale=.37]
 	
-		\renewcommand{\icLabel}{\large 74HC165}
+		\renewcommand{\icLabel}{\large \parallelLoadName}
 		
 		\renewcommand{\pinNamesLeft}{0/\invertPin{\parallelLoadParallelLoad}, 1/\parallelLoadClock, 2/$\parallelLoadExternalBit_4$, 3/$\parallelLoadExternalBit_5$, 4/$\parallelLoadExternalBit_6$, 5/$\parallelLoadExternalBit_7$, 6/\invertPin{\parallelLoadSerialOut}, 7/\ground} % 0 up to \pinCountPerSide-1
     	\renewcommand{\pinNamesRight}{8/\parallelLoadSerialOut, 9/\parallelLoadSerialIn, 10/$\parallelLoadExternalBit_0$, 11/$\parallelLoadExternalBit_1$, 12/$\parallelLoadExternalBit_2$, 13/$\parallelLoadExternalBit_3$, 14/\invertPin{\parallelLoadClockEnable}, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1pinCountPerSide-1
@@ -273,27 +276,27 @@ $\shiftRegisterExternalBit_i$ - Output $i$; \ground\ - Ground; \shiftRegisterSer
 			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
 		\end{scope}
 	\end{tikzpicture}
-    \caption{Schematic of the parallel in, serial out IC 74HC165.}
+    \caption{Schematic of the parallel in, serial out IC \parallelLoadName.}
     \label{fig:parallelLoad}
 \end{figure}
 Working principle:\\
 The parallel load, serial out IC has an internal [$\parallelLoadInternalBit_i$, $i \in [0,7]$] and an external [$\parallelLoadExternalBit_i$, $i \in [0,7]$] 8-bit register.\\
 When \invertPin{\parallelLoadParallelLoad}\ is \signalLow\ the $\parallelLoadExternalBit_i$ are copied to the $\parallelLoadInternalBit_i$ [$i \in [0,7]$] asynchronously, i.e.\ without the need for a clock.\\
-When \invertPin{\parallelLoadParallelLoad}\ is \signalHigh\ the 74HC165 will function as a shift-register: on a positive edge on \parallelLoadClock\ [if \invertPin{\parallelLoadClockEnable} is low] the values $\parallelLoadInternalBit_i$ are shifted to $\parallelLoadInternalBit_{i+1}$ [$i \in [0,6]$, higher $i$ first] and \parallelLoadSerialIn\ to $\parallelLoadInternalBit_0$. Additionally the complementary signal of the new \parallelLoadSerialOut\ will be visible on \invertPin{\parallelLoadSerialOut}.\\
-\vcc\ and \ground\ are required for the 74HC165 to work.\\
-\parallelLoadSerialOut\ can be used to pass the out-shifted bits on to another 74HC165, if \parallelLoadSerialOut\ is connected to \parallelLoadSerialIn\ of the next 74HC165 [which will need to have \invertPin{\parallelLoadParallelLoad}\ low, \invertPin{\parallelLoadClockEnable} low and be clocked accordingly].
+When \invertPin{\parallelLoadParallelLoad}\ is \signalHigh\ the \parallelLoadName\ will function as a shift-register: on a positive edge on \parallelLoadClock\ [if \invertPin{\parallelLoadClockEnable} is low] the values $\parallelLoadInternalBit_i$ are shifted to $\parallelLoadInternalBit_{i+1}$ [$i \in [0,6]$, higher $i$ first] and \parallelLoadSerialIn\ to $\parallelLoadInternalBit_0$. Additionally the complementary signal of the new \parallelLoadSerialOut\ will be visible on \invertPin{\parallelLoadSerialOut}.\\
+\vcc\ and \ground\ are required for the \parallelLoadName\ to work.\\
+\parallelLoadSerialOut\ can be used to pass the out-shifted bits on to another \parallelLoadName, if \parallelLoadSerialOut\ is connected to \parallelLoadSerialIn\ of the next \parallelLoadName\ [which will need to have \invertPin{\parallelLoadParallelLoad}\ low, \invertPin{\parallelLoadClockEnable} low and be clocked accordingly].
 
 \invertPin{\parallelLoadParallelLoad} - Not Parallel Load; \parallelLoadClock\ - Clock; $\parallelLoadExternalBit_i$ - Parallel Data In; \parallelLoadSerialOut\ - Serial Output; \invertPin{\parallelLoadSerialOut}\ - Not Serial Output; \ground\ - Ground; \parallelLoadSerialIn\ - Serial In; \invertPin{\parallelLoadClockEnable} - Not Clock Enable; \vcc\ - Supply Voltage.
 
 
 
-\subsection{CD4043B - CMOS Quad 3-State R/S-Latches [NOR]}
+\subsection{\latchName\ - CMOS Quad 3-State R/S-Latches [NOR]}
 
 \begin{figure}[h!]
 	\centering
 	\begin{tikzpicture}[scale=.37]
 	
-		\renewcommand{\icLabel}{\large CD4043B}
+		\renewcommand{\icLabel}{\large \latchName}
 		
 		\renewcommand{\pinNamesLeft}{0/$\latchOutput_3$, 1/$\latchOutput_0$, 2/$\latchReset_0$, 3/$\latchSet_0$, 4/$\latchOutputEnable$, 5/$\latchSet_1$, 6/$\latchReset_1$, 7/\ground} % 0 up to \pinCountPerSide-1
     	\renewcommand{\pinNamesRight}{8/$\latchOutput_1$, 9/$\latchOutput_2$, 10/$\latchReset_2$, 11/$\latchSet_2$, 12/$\latchNotConnected$, 13/$\latchSet_3$, 14/$\latchReset_3$, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1pinCountPerSide-1
@@ -313,13 +316,13 @@ When \invertPin{\parallelLoadParallelLoad}\ is \signalHigh\ the 74HC165 will fun
 			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
 		\end{scope}
 	\end{tikzpicture}
-    \caption{Schematic of the quad 3-state R/S Latch CD4043B.}
+    \caption{Schematic of the quad 3-state R/S Latch \latchName.}
     \label{fig:quadRSLatch}
 \end{figure}
 
-\begin{table}[h!]
+\begin{table}[H]
     \centering
-    \caption{Functional states of the quad 3-state R/S Latch CD4043B [$i \in [0, 3]$].}
+    \caption{Functional states of the quad 3-state R/S Latch \latchName\ [$i \in [0, 3]$].}
     \label{tab:quadRSLatch}
     \begin{tabular}{ccc|c}
         $\latchSet_i$   & $\latchReset_i$   & \latchOutputEnable    & $\latchOutput_i$\\\hline
