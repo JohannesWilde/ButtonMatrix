@@ -247,6 +247,55 @@
 	\end{tabular}
 \end{table}
 
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \latchName\ and their respective connections.}
+	\label{tab:latchConnections}
+	\begin{tabular}{c|l}
+		\latchName\ pin  & connected to \\\hline
+		\vcc & \vccPeriphery\\
+		\ground & \ground\\
+		$\latchOutput_i$ & \devicePinConcatenation{\parallelLoadName}{$\parallelLoadExternalBit_j$}\\
+		$\latchSet_i$ & $\pinIn_{k}$\\
+		$\latchReset_i$ & \devicePinConcatenation{\atmegathreetwoeightp}{C1}\\
+		\latchOutputEnable & \vccPeriphery\\
+	\end{tabular}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \additionalPinsOneName\ and their respective connections.}
+	\label{tab:additionalPinsOneConnections}
+	\begin{tabular}{c|l}
+		\additionalPinsOneName\ pin  & connected to \\\hline
+		0 & \ground\\
+		1 & \ground\\
+		2 & \vccPeriphery\\
+		3 & \vccPeriphery\\
+		4 & \ground\\
+		5 & \atmegathreetwoeightp-B0\\
+		6 & \atmegathreetwoeightp-D1\\
+		7 & \atmegathreetwoeightp-D0\\
+	\end{tabular}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \additionalPinsTwoName\ and their respective connections.}
+	\label{tab:additionalPinsTwoConnections}
+	\begin{tabular}{c|l}
+		\additionalPinsTwoName\ pin  & connected to \\\hline
+		0 & \vcc\\
+		1 & \vcc\\
+		2 & \atmegathreetwoeightp-C0\\
+		3 & \atmegathreetwoeightp-B2\\
+		4 & \atmegathreetwoeightp-B1\\
+		5 & \atmegathreetwoeightp-D7\\
+		6 & \ground\\
+		7 & \ground\\
+	\end{tabular}
+\end{table}
+
 
 
 \pagebreak
