@@ -29,6 +29,8 @@
 %\usepackage{siunitx} % Einheiten
 %\sisetup{locale=DE} % Konfiguration zu siunitx
 %\usepackage{booktabs} % Tabellen
+%\usepackage{pdfpages}
+\usepackage{float}
 
 \usepackage{enumitem}
 %\setlist[description]{font=\normalfont}
@@ -102,10 +104,53 @@
 \begin{document}
 
 \begin{center}
-	\Huge \underline{Arduino \& Co.}
+	\Huge \underline{Button Matrix - Documentation}
 \end{center}
 
-\section{74HC595 - 8-bit Shift Register}
+\section{Circuit Board}
+
+\subsection{Schematic}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=\textwidth]{./Images/201902_GameBoard_schem-v1.pdf}
+	\caption{Schematic view of the circuit board design.}
+	\label{fig:schematic}
+\end{figure}
+%\includepdf[fitpaper=true, pages=-]{./Images/201902_GameBoard_schem-v1.pdf}
+
+
+\subsection{Layout - Top}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.7\textwidth]{./Images/201902_GameBoard_fudged_final1_etch_copper_top.pdf}
+	\caption{View of the circuit board top as seen from the top.}
+	\label{fig:circuitTop}
+\end{figure}
+
+\subsection{Layout - Bottom}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.7\textwidth]{./Images/201902_GameBoard_fudged_final1_etch_copper_bottom_mirror.pdf}
+	\caption{View of the circuit board bottom as seen from the bottom.}
+	\label{fig:circuitBottom}
+\end{figure}
+
+\subsection{Layout - Hardware}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.7\textwidth]{./Images/201902_GameBoard_fudged_final1_grounded_named_etch_silk_top.pdf}
+	\caption{Positioning of the hardware as seen from the top.}
+	\label{fig:hardwareTop}
+\end{figure}
+
+
+\section{Hardware Description}
+
+\subsection{74HC595 - 8-bit Shift Register}
 
 \begin{figure}[h!]
 	\centering
@@ -145,7 +190,7 @@ A \signalLow\ on \invertPin{\shiftRegisterClear}\ will set $\shiftRegisterIntern
 $\shiftRegisterExternalBit_i$ - Output $i$; \ground\ - Ground; \shiftRegisterSerialOut\ - Serial output; \invertPin{\shiftRegisterClear} - Clear internal shift-register on \signalLow; \shiftRegisterClockOut\ - Copy internal to external shift-register; \shiftRegisterClockIn\ - shift in \serialIn\ on rising edge; \invertPin{\outputEnable} - Output Enable; \serialIn\ - Serial input; \vcc\ - Supply Voltage.
 %\newpage
 
-\section{74HC165 - 8-bit parrallel in, serial out register}
+\subsection{74HC165 - 8-bit parrallel in, serial out register}
 
 \hspace*{99cm}\textcolor{white}{\invertPin{\parallelLoadSerialOut}}\\[-24pt]
 
@@ -187,7 +232,7 @@ When \invertPin{\parallelLoadParallelLoad}\ is \signalHigh\ the 74HC165 will fun
 
 
 
-\section{CD4043B - CMOS Quad 3-State R/S-Latches [NOR]}
+\subsection{CD4043B - CMOS Quad 3-State R/S-Latches [NOR]}
 
 \begin{figure}[h!]
 	\centering
@@ -240,7 +285,7 @@ In case $\latchSet_i$ and $\latchReset_i$ are \signalHigh\ simultaneously, the r
 $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set $i$; \latchOutputEnable\ - Output Enable; \ground\ - Ground; \latchNotConnected\ - Not Connected; \vcc\ - Supply Voltage.
 
 
-\section{LED}
+\subsection{LED}
 
 \begin{figure}[h!]
     \centering
@@ -261,7 +306,7 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
     \label{fig:led}
 \end{figure}
 
-\section{npn-Transistor}
+\subsection{npn-Transistor}
 
 \begin{figure}[h!]
 	\centering
@@ -285,6 +330,6 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 	\label{fig:led}
 \end{figure}
 
-\section{Periphery}
+\subsection{Periphery}
 
 \end{document}
