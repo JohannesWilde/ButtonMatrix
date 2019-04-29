@@ -1,0 +1,290 @@
+\documentclass[english, parskip=half-, 11pt]{scrartcl}
+
+\setlength{\oddsidemargin}{0cm}
+\setlength{\textwidth}{15.5cm}
+\setlength{\topmargin}{-1cm}
+\setlength{\textheight}{23cm}
+\setlength{\parindent}{0cm}
+\setlength{\parskip}{4pt}
+
+\usepackage[utf8]{inputenc} % Inputencoding
+\usepackage[T1]{fontenc} % Outputencoding
+\usepackage{lmodern}
+\usepackage{babel} % Umlaute, Sätze, ...
+\usepackage{mathtools} % amsmath erweitert
+\usepackage{amssymb} % mathematische Symbole
+%\usepackage{fancyhdr} % Kopf- und Fußzeilen
+\usepackage{microtype} % Randausgleich, Umbrüche, ...
+\usepackage{xcolor}
+\usepackage{csquotes}
+%\usepackage{MnSymbol}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumerate}
+
+\usepackage{tikz} % Grafiken
+\usetikzlibrary{calc}
+\usepackage{circuitikz}
+%\usepackage{tikz-3dplot}
+%\usetikzlibrary{arrows,decorations.pathmorphing}
+%\usepackage{siunitx} % Einheiten
+%\sisetup{locale=DE} % Konfiguration zu siunitx
+%\usepackage{booktabs} % Tabellen
+
+\usepackage{enumitem}
+%\setlist[description]{font=\normalfont}
+%\setlength{\parindent}{0pt}
+\renewcommand\labelitemi{--}
+\newcommand{\topSection}[1]{{\bfseries {#1}}}
+\newcommand{\itemizeMargin}{3cm}
+\newcommand{\itemizeIndent}{-2cm}
+
+\newcommand{\radius}{.65}
+
+% default parameters
+\newcommand{\icLabel}{\large Label}
+\newcommand{\pinNamesLeft}{0/pin0, 1/pin1, 2/pin2, 3/pin3, 4/pin4, 5/pin5, 6/pin6, 7/pin7} % 0 up to \pinCountPerSide-1
+\newcommand{\pinNamesRight}{8/pin8, 9/pin9, 10/pin10, 11/pin11, 12/pin12, 13/pin13, 14/pin14, 15/pin15} % \pinCountPerSide up to 2*\pinCountPerSide-1
+\newcommand{\icWidth}{4}
+\newcommand{\icHeight}{10}
+\newcommand{\pinCountPerSide}{8}
+\newcommand{\pinWidth}{1.05}
+\newcommand{\pinHeight}{.49}
+\newcommand{\pinDistance}{1.27}
+\newcommand{\markerDiameter}{1.333333333333333333333}
+\newcommand{\labelOffset}{1}
+\newcommand{\globalRotation}{0}
+\newcommand{\textRotation}{90}
+\newcommand{\pinTextRotation}{0}
+\newcommand{\labelAnchor}{west}
+\newcommand{\textRightAnchor}{west}
+\newcommand{\textLeftAnchor}{east}
+
+% common
+\newcommand{\invertPin}[1]{$\overline{\text{#1}}$}
+\newcommand{\ground}{\text{GND}}
+\newcommand{\vcc}{\text{VCC}}
+\newcommand{\serialIn}{\text{SER}}
+\newcommand{\outputEnable}{\text{OE}}
+\newcommand{\notConnected}{\text{NC}}
+\newcommand{\signalHigh}{HIGH}
+\newcommand{\signalLow}{LOW}
+
+% shift-register specific
+\newcommand{\shiftRegisterClockOut}{RCLK}
+\newcommand{\shiftRegisterClockIn}{SRCLK}
+\newcommand{\shiftRegisterClear}{SRCLR}
+\newcommand{\shiftRegisterInternalBit}{\text{q}}
+\newcommand{\shiftRegisterExternalBit}{\text{Q}}
+\newcommand{\shiftRegisterSerialOut}{$\shiftRegisterInternalBit_{7}$}
+\newcommand{\shiftRegisterSerialIn}{\serialIn}
+\newcommand{\shiftRegisterOutputEnable}{\OutputEnable} % Todo: check nested commands!
+
+% parallel-load specific
+\newcommand{\parallelLoadParallelLoad}{PL}
+\newcommand{\parallelLoadClock}{CP}
+\newcommand{\parallelLoadClockEnable}{CE}
+\newcommand{\parallelLoadSerialIn}{\serialIn}
+\newcommand{\parallelLoadInternalBit}{\text{d}}
+\newcommand{\parallelLoadExternalBit}{\text{D}}
+\newcommand{\parallelLoadSerialOut}{$\parallelLoadInternalBit_{7}$}
+
+% r/s-latch specific
+\newcommand{\latchReset}{R}
+\newcommand{\latchSet}{S}
+\newcommand{\latchOutput}{Q}
+\newcommand{\latchOutputEnable}{\outputEnable}
+\newcommand{\latchNotConnected}{\notConnected}
+
+
+\title{Notes on Arduino and related Hardware}
+\author{Johannes Wilde}
+
+\begin{document}
+
+\begin{center}
+	\Huge \underline{Arduino \& Co.}
+\end{center}
+
+\section{74HC595 - 8-bit Shift Register}
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}[scale=.37]
+	
+		\renewcommand{\icLabel}{\large 74HC595}
+		
+		\renewcommand{\pinNamesLeft}{0/$\shiftRegisterExternalBit_1$, 1/$\shiftRegisterExternalBit_2$, 2/$\shiftRegisterExternalBit_3$, 3/$\shiftRegisterExternalBit_4$, 4/$\shiftRegisterExternalBit_5$, 5/$\shiftRegisterExternalBit_6$, 6/$\shiftRegisterExternalBit_7$, 7/\ground} % 0 up to \pinCountPerSide-1
+		\renewcommand{\pinNamesRight}{8/\shiftRegisterSerialOut, 9/\invertPin{\shiftRegisterClear}, 10/\shiftRegisterClockIn, 11/\shiftRegisterClockOut, 12/\invertPin{\outputEnable}, 13/\shiftRegisterSerialIn, 14/$\shiftRegisterExternalBit_0$, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1
+			
+		\begin{scope}[xshift=23cm,yshift=-12cm, rotate=\globalRotation]
+			\foreach \pinNumber/\name in \pinNamesLeft
+			{
+				\draw (0,\icHeight - \icHeight / 2 + \pinCountPerSide * \pinDistance / 2 - 1 * \pinDistance / 2 - \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(-\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textLeftAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\pgfmathparse{\pinCountPerSide - 1}
+			\foreach \pinNumber/\name in \pinNamesRight
+			{
+				\draw (\icWidth,-\icHeight / 2 - \pinCountPerSide * \pinDistance / 2 + 1 * \pinDistance / 2 + \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textRightAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\draw[thick] (0,0) -- ++(\icWidth,0) -- ++(0,\icHeight) -- ++(-1*\icWidth/2+\markerDiameter/2,0) arc (0:-180:\markerDiameter/2) -- ++(-1*\icWidth/2+\markerDiameter/2,0) -- ++(0,-\icHeight);
+			
+			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
+		\end{scope}
+	\end{tikzpicture}
+    \caption{Schematic of the 8-bit shift register 74HC595.}
+    \label{fig:shiftRegister}
+\end{figure}
+Working principle:\\
+The shiftregister has an internal [$\shiftRegisterInternalBit_i$, $i \in [0,7]$] and an external [$\shiftRegisterExternalBit_i$, $i \in [0,7]$] 8-bit register.\\
+On a rising edge on \shiftRegisterClockIn\ the values $\shiftRegisterInternalBit_i$ are shifted to $\shiftRegisterInternalBit_{i+1}$ [$i \in [0,6]$, higher $i$ first] and \shiftRegisterSerialIn\ to $\shiftRegisterInternalBit_0$.\\
+On a rising edge on \shiftRegisterClockOut\ the values of $\shiftRegisterInternalBit_i$ are copied to $\shiftRegisterExternalBit_{i}$ [$i \in [0,7]$]. These will only be visible externally if \invertPin{\outputEnable}\ is \signalLow\ [otherwise the outputs will be in a high impedance state].\\
+A \signalLow\ on \invertPin{\shiftRegisterClear}\ will set $\shiftRegisterInternalBit_i$ [$i \in [0,7]$] \signalLow.\\
+\vcc\ and \ground\ are required for the shift-register to work.\\
+\shiftRegisterSerialOut\ can be used to pass the out-shifted bits on to another shift-register, if \shiftRegisterSerialOut\ is connected to \shiftRegisterSerialIn\ of the next shift-register [which will have to be clocked accordingly].
+
+$\shiftRegisterExternalBit_i$ - Output $i$; \ground\ - Ground; \shiftRegisterSerialOut\ - Serial output; \invertPin{\shiftRegisterClear} - Clear internal shift-register on \signalLow; \shiftRegisterClockOut\ - Copy internal to external shift-register; \shiftRegisterClockIn\ - shift in \serialIn\ on rising edge; \invertPin{\outputEnable} - Output Enable; \serialIn\ - Serial input; \vcc\ - Supply Voltage.
+%\newpage
+
+\section{74HC165 - 8-bit parrallel in, serial out register}
+
+\hspace*{99cm}\textcolor{white}{\invertPin{\parallelLoadSerialOut}}\\[-24pt]
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}[scale=.37]
+	
+		\renewcommand{\icLabel}{\large 74HC165}
+		
+		\renewcommand{\pinNamesLeft}{0/\invertPin{\parallelLoadParallelLoad}, 1/\parallelLoadClock, 2/$\parallelLoadExternalBit_4$, 3/$\parallelLoadExternalBit_5$, 4/$\parallelLoadExternalBit_6$, 5/$\parallelLoadExternalBit_7$, 6/\invertPin{\parallelLoadSerialOut}, 7/\ground} % 0 up to \pinCountPerSide-1
+    	\renewcommand{\pinNamesRight}{8/\parallelLoadSerialOut, 9/\parallelLoadSerialIn, 10/$\parallelLoadExternalBit_0$, 11/$\parallelLoadExternalBit_1$, 12/$\parallelLoadExternalBit_2$, 13/$\parallelLoadExternalBit_3$, 14/\invertPin{\parallelLoadClockEnable}, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1pinCountPerSide-1
+			
+		\begin{scope}[xshift=23cm,yshift=-12cm, rotate=\globalRotation]
+			\foreach \pinNumber/\name in \pinNamesLeft
+			{
+				\draw (0,\icHeight - \icHeight / 2 + \pinCountPerSide * \pinDistance / 2 - 1 * \pinDistance / 2 - \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(-\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textLeftAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\pgfmathparse{\pinCountPerSide - 1}
+			\foreach \pinNumber/\name in \pinNamesRight
+			{
+				\draw (\icWidth,-\icHeight / 2 - \pinCountPerSide * \pinDistance / 2 + 1 * \pinDistance / 2 + \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textRightAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\draw[thick] (0,0) -- ++(\icWidth,0) -- ++(0,\icHeight) -- ++(-1*\icWidth/2+\markerDiameter/2,0) arc (0:-180:\markerDiameter/2) -- ++(-1*\icWidth/2+\markerDiameter/2,0) -- ++(0,-\icHeight);
+			
+			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
+		\end{scope}
+	\end{tikzpicture}
+    \caption{Schematic of the parallel in, serial out IC 74HC165.}
+    \label{fig:parallelLoad}
+\end{figure}
+Working principle:\\
+The parallel load, serial out IC has an internal [$\parallelLoadInternalBit_i$, $i \in [0,7]$] and an external [$\parallelLoadExternalBit_i$, $i \in [0,7]$] 8-bit register.\\
+When \invertPin{\parallelLoadParallelLoad}\ is \signalLow\ the $\parallelLoadExternalBit_i$ are copied to the $\parallelLoadInternalBit_i$ [$i \in [0,7]$] asynchronously, i.e.\ without the need for a clock.\\
+When \invertPin{\parallelLoadParallelLoad}\ is \signalHigh\ the 74HC165 will function as a shift-register: on a positive edge on \parallelLoadClock\ [if \invertPin{\parallelLoadClockEnable} is low] the values $\parallelLoadInternalBit_i$ are shifted to $\parallelLoadInternalBit_{i+1}$ [$i \in [0,6]$, higher $i$ first] and \parallelLoadSerialIn\ to $\parallelLoadInternalBit_0$. Additionally the complementary signal of the new \parallelLoadSerialOut\ will be visible on \invertPin{\parallelLoadSerialOut}.\\
+\vcc\ and \ground\ are required for the 74HC165 to work.\\
+\parallelLoadSerialOut\ can be used to pass the out-shifted bits on to another 74HC165, if \parallelLoadSerialOut\ is connected to \parallelLoadSerialIn\ of the next 74HC165 [which will need to have \invertPin{\parallelLoadParallelLoad}\ low, \invertPin{\parallelLoadClockEnable} low and be clocked accordingly].
+
+\invertPin{\parallelLoadParallelLoad} - Not Parallel Load; \parallelLoadClock\ - Clock; $\parallelLoadExternalBit_i$ - Parallel Data In; \parallelLoadSerialOut\ - Serial Output; \invertPin{\parallelLoadSerialOut}\ - Not Serial Output; \ground\ - Ground; \parallelLoadSerialIn\ - Serial In; \invertPin{\parallelLoadClockEnable} - Not Clock Enable; \vcc\ - Supply Voltage.
+
+
+
+\section{CD4043B - CMOS Quad 3-State R/S-Latches [NOR]}
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}[scale=.37]
+	
+		\renewcommand{\icLabel}{\large CD4043B}
+		
+		\renewcommand{\pinNamesLeft}{0/$\latchOutput_3$, 1/$\latchOutput_0$, 2/$\latchReset_0$, 3/$\latchSet_0$, 4/$\latchOutputEnable$, 5/$\latchSet_1$, 6/$\latchReset_1$, 7/\ground} % 0 up to \pinCountPerSide-1
+    	\renewcommand{\pinNamesRight}{8/$\latchOutput_1$, 9/$\latchOutput_2$, 10/$\latchReset_2$, 11/$\latchSet_2$, 12/$\latchNotConnected$, 13/$\latchSet_3$, 14/$\latchReset_3$, 15/\vcc} % \pinCountPerSide up to 2*\pinCountPerSide-1pinCountPerSide-1
+			
+		\begin{scope}[xshift=23cm,yshift=-12cm, rotate=\globalRotation]
+			\foreach \pinNumber/\name in \pinNamesLeft
+			{
+				\draw (0,\icHeight - \icHeight / 2 + \pinCountPerSide * \pinDistance / 2 - 1 * \pinDistance / 2 - \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(-\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textLeftAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\pgfmathparse{\pinCountPerSide - 1}
+			\foreach \pinNumber/\name in \pinNamesRight
+			{
+				\draw (\icWidth,-\icHeight / 2 - \pinCountPerSide * \pinDistance / 2 + 1 * \pinDistance / 2 + \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textRightAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\draw[thick] (0,0) -- ++(\icWidth,0) -- ++(0,\icHeight) -- ++(-1*\icWidth/2+\markerDiameter/2,0) arc (0:-180:\markerDiameter/2) -- ++(-1*\icWidth/2+\markerDiameter/2,0) -- ++(0,-\icHeight);
+			
+			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
+		\end{scope}
+	\end{tikzpicture}
+    \caption{Schematic of the quad 3-state R/S Latch CD4043B.}
+    \label{fig:quadRSLatch}
+\end{figure}
+
+\begin{table}[h!]
+    \centering
+    \caption{Functional states of the quad 3-state R/S Latch CD4043B [$i \in [0, 3]$].}
+    \label{tab:quadRSLatch}
+    \begin{tabular}{ccc|c}
+        $\latchSet_i$   & $\latchReset_i$   & \latchOutputEnable    & $\latchOutput_i$\\\hline
+        X               & X                 & \signalLow            & high impedance\\
+        \signalLow      & \signalLow        & \signalHigh           & unchanged\\
+        \signalHigh     & \signalLow        & \signalHigh           & \signalHigh\\
+        \signalLow      & \signalHigh       & \signalHigh           & \signalLow\\
+        \signalHigh     & \signalHigh       & \signalHigh           & \signalHigh
+    \end{tabular}
+\end{table}
+
+Working principle:\\
+\latchOutputEnable\ controls whether the ouputs $\latchOutput_i$ [$i \in [0,3]$] are connected [\latchOutputEnable\ is \signalHigh] or in a high-impedance state [like an open circuit; \latchOutputEnable\ is \signalLow].\\
+Each separate output $\latchOutput_i$ [$i \in [0,3]$] can be set to \signalHigh\ [$\latchSet_i$ \signalHigh] or reset to \signalLow\ [$\latchReset$ \signalHigh] seperately and asynchronously.\\
+In case $\latchSet_i$ and $\latchReset_i$ are \signalHigh\ simultaneously, the respective output $\latchOutput_i$ will read \signalHigh.\\
+\latchNotConnected\ is not connected internally.
+
+$\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set $i$; \latchOutputEnable\ - Output Enable; \ground\ - Ground; \latchNotConnected\ - Not Connected; \vcc\ - Supply Voltage.
+
+
+\section{LED}
+
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}
+        \begin{scope}[scale=.5]
+            % outer shell
+            \draw (.5,0) -- ++(3,0) -- ++(0,2) arc (0:180:1.5) -- ++(0,-2);
+            % plus
+            \draw (2.5,-1) ++(-.125,0) -- ++(0,2) -- ++(-.2,0) -- ++(0,.2) -- ++(.3,.2) -- ++(.1,0) -- ++(0,-2.4) node[anchor=west] {$+$};
+            %minus
+            \draw (1.75,-1) ++(-.125,0) -- ++(0,2.3) -- ++(.5,.333333333333) -- ++(0,.266666666667) -- ++(-.7,0) -- ++(0,-2.9) node[anchor=east] {$-$};
+        \end{scope}
+        \begin{scope}[scale=.45, shift={(8,0)}]
+	        \draw (0,0) node[anchor=east] {$+$} to[empty led] (3,0) node[anchor=west] {$-$};
+        \end{scope}
+    \end{tikzpicture}
+    \caption{Schematic view of a LED and its representation in circuit diagrams.}
+    \label{fig:led}
+\end{figure}
+
+\section{npn-Transistor}
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}
+		\begin{scope}[scale=.45]
+			% outer shell
+			\draw (0,0) -- ++(3,0) -- ++(0,.5) arc (0:180:1.5) -- ++(0,-.5);
+			% plus
+			\draw (.5,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {C};
+			\draw (1.3,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {B};
+			\draw (2.1,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {E};
+		\end{scope}
+		\begin{scope}[scale=.45, shift={(10,0)}]
+			\draw (0,0) node[npn](transistor) {\empty}
+			(transistor.base) node[anchor=east] {B}
+			(transistor.collector) node[anchor=south] {C}
+			(transistor.emitter) node[anchor=north] {E};
+		\end{scope}
+	\end{tikzpicture}
+	\caption{Schematic top view onto a npn-transistor and its representation in circuit diagrams.}
+	\label{fig:led}
+\end{figure}
+
+\section{Periphery}
+
+\end{document}
