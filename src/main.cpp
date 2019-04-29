@@ -7,20 +7,29 @@
 #include <util/delay.h>
 #include "ArduinoDrivers/arduinouno.hpp"
 
+#include "ArduinoDrivers/shiftregister74hc595.hpp"
 //#include "ArduinoDrivers/rslatchcd4043b.hpp"
-//#include "ArduinoDrivers/shiftregister74hc595.hpp"
 //#include "ArduinoDrivers/parallelinshiftregister74hc165.hpp"
 
 int main()
 {
     typedef ArduinoUno arduinoUno;
 
-    arduinoUno::LED_BUILTIN::setType(AvrInputOutput::OUTPUT_HIGH);
+    typedef ShiftRegister74HC595<8,
+            arduinoUno::D2,
+            arduinoUno::D5,
+            arduinoUno::D4,
+            arduinoUno::D3,
+            arduinoUno::D6> shiftRegister;
+    shiftRegister::initialize();
+    shiftRegister::enableOutput();
+
+    uint8_t data = 0xff;
     while (true)
     {
-        _delay_ms(1000);
-        arduinoUno::LED_BUILTIN::clearPort();
-        _delay_ms(1000);
-        arduinoUno::LED_BUILTIN::setPort();
+        shiftRegister::shiftInBits(&data);
+        shiftRegister::showShiftRegister();
+        _delay_ms(100);
+        data--;
     }
 }
