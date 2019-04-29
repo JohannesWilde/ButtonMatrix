@@ -222,7 +222,7 @@
 		\shiftRegisterName\ pin  & connected to \\\hline
 		\vcc & \vccPeriphery\\
 		\ground & \ground\\
-		\serialIn & \devicePinConcatenation{\atmegathreetwoeightp}{D2}\\
+		\serialIn & \devicePinConcatenation{\atmegathreetwoeightp}{D2} / \devicePinConcatenation{$\shiftRegisterName^{\prime\prime}$}{\shiftRegisterSerialOut}\\
 		\invertPin{\outputEnable} & \devicePinConcatenation{\atmegathreetwoeightp}{D3}\\
 		\shiftRegisterClockOut & \devicePinConcatenation{\atmegathreetwoeightp}{D4}\\
 		\shiftRegisterClockIn & \devicePinConcatenation{\atmegathreetwoeightp}{D5}\\
@@ -242,7 +242,7 @@
 		\ground & \ground\\
 		\invertPin{\parallelLoadParallelLoad} & \devicePinConcatenation{\atmegathreetwoeightp}{C3}\\
 		\parallelLoadClock & \devicePinConcatenation{\atmegathreetwoeightp}{C2}\\
-		\parallelLoadSerialOut & \devicePinConcatenation{\atmegathreetwoeightp}{C4}\\
+		\parallelLoadSerialOut & \devicePinConcatenation{\atmegathreetwoeightp}{C4} / \devicePinConcatenation{$\parallelLoadName^{\prime\prime}$}{\parallelLoadSerialIn}\\
 		\invertPin{\parallelLoadSerialOut} & \notConnected\\
 		\parallelLoadSerialIn & \devicePinConcatenation{$\parallelLoadName^{\prime}$}{\parallelLoadSerialOut} / \ground\\
 		\invertPin{\parallelLoadClockEnable} & \ground\\
