@@ -75,6 +75,13 @@
 \newcommand{\miso}{MISO}
 \newcommand{\reset}{Reset}
 \newcommand{\clock}{CLK}
+\newcommand{\spi}{SPI}
+
+% ATmega328P specific
+\newcommand{\atmegathreetwoeightp}{ATmega328P}
+\newcommand{\avcc}{AVCC}
+\newcommand{\aref}{AREF}
+\newcommand{\xtal}{XTAL}
 
 % shift-register specific
 \newcommand{\shiftRegisterClockOut}{RCLK}
@@ -153,7 +160,50 @@
 \end{figure}
 
 
+\subsection{Pin Connections}
+
+
+
+
+\pagebreak
+
 \section{Hardware Description}
+
+\subsection{\atmegathreetwoeightp}
+
+\begin{figure}[h!]
+	\centering
+	\begin{tikzpicture}[scale=.37]
+		\renewcommand{\icWidth}{4}
+		\renewcommand{\icHeight}{18}
+		\renewcommand{\pinCountPerSide}{14}
+		
+		\renewcommand{\icLabel}{\large \atmegathreetwoeightp}
+		
+		\renewcommand{\pinNamesLeft}{0/{(\invertPin{\reset}) PC6}, 1/PD0, 2/PD1, 3/PD2, 4/PD3, 5/PD4, 6/\vcc, 7/\ground, 8/{(\xtal1) PB6}, 9/{(\xtal2) PB7}, 10/PD5, 11/PD6, 12/PD7, 13/PB0} % 0 up to \pinCountPerSide-1
+		\renewcommand{\pinNamesRight}{14/PB1, 15/PB2, 16/{PB3 (\mosi)}, 17/{PB4 (\miso)}, 18/{PB5 (\clock)}, 19/\avcc, 20/\aref, 21/\ground, 22/PC0, 23/PC1, 24/PC2, 25/PC3, 26/PC4, 27/PC5} % \pinCountPerSide up to 2*\pinCountPerSide-1
+		
+		\begin{scope}[xshift=23cm,yshift=-12cm, rotate=\globalRotation]
+			\foreach \pinNumber/\name in \pinNamesLeft
+			{
+				\draw (0,\icHeight - \icHeight / 2 + \pinCountPerSide * \pinDistance / 2 - 1 * \pinDistance / 2 - \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(-\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textLeftAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\pgfmathparse{\pinCountPerSide - 1}
+			\foreach \pinNumber/\name in \pinNamesRight
+			{
+				\draw (\icWidth,-\icHeight / 2 - \pinCountPerSide * \pinDistance / 2 + 1 * \pinDistance / 2 + \pinNumber * \pinDistance - \pinHeight / 2) rectangle ++(\pinWidth,\pinHeight) ++(0,-\pinHeight/2) node[anchor=\textRightAnchor, rotate=\pinTextRotation] {\name};
+			}
+			\draw[thick] (0,0) -- ++(\icWidth,0) -- ++(0,\icHeight) -- ++(-1*\icWidth/2+\markerDiameter/2,0) arc (0:-180:\markerDiameter/2) -- ++(-1*\icWidth/2+\markerDiameter/2,0) -- ++(0,-\icHeight);
+			
+			\draw (\icWidth/2,\labelOffset) node[anchor=\labelAnchor, rotate=\textRotation] {\icLabel};
+		\end{scope}
+	\end{tikzpicture}
+	\caption{Schematic of the \atmegathreetwoeightp.}
+	\label{fig:atmega328p}
+\end{figure}
+
+The bracketed names specify functionality assigned to the respective pins by the underlying hardware design. If one would want, these can be reconfigured for different use cases however.
+
 
 \subsection{74HC595 - 8-bit Shift Register}
 
@@ -340,7 +390,7 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 
 \section{SPI-Programming}
 
-The Atmega 328p can be programmed using the serial peripheral interface [SPI].
+The \atmegathreetwoeightp\ can be programmed using the serial peripheral interface [\spi].
 
 \begin{figure}[h!]
 	\centering
@@ -366,7 +416,7 @@ The Atmega 328p can be programmed using the serial peripheral interface [SPI].
 	\label{fig:SPIconnector}
 \end{figure}
 
-I used an Arduino Uno programmed with the \enquote{Arduino ISP} sketch [under Examples in the Arduino IDE]  to program my separate Atmega 328p.
+I used an Arduino Uno programmed with the \enquote{Arduino ISP} sketch [under Examples in the Arduino IDE]  to program my separate \atmegathreetwoeightp.
 
 In order for that to work one will have to keep the \reset\ pin of the programming Arduino Uno \signalHigh\ with a capacitor and connect the \reset\ pin of the device to be programmed with the pin as specified in the \enquote{Arduino ISP} sketch via \lstinline[language=C]!#define RESET 10! [this being pin D10 per default].
 
