@@ -66,6 +66,7 @@
 \newcommand{\invertPin}[1]{$\overline{\text{#1}}$}
 \newcommand{\ground}{\text{GND}}
 \newcommand{\vcc}{\text{VCC}}
+\newcommand{\vccPeriphery}{\text{VCCo}}
 \newcommand{\serialIn}{\text{SER}}
 \newcommand{\outputEnable}{\text{OE}}
 \newcommand{\notConnected}{\text{NC}}
@@ -112,6 +113,13 @@
 \newcommand{\latchOutputEnable}{\outputEnable}
 \newcommand{\latchNotConnected}{\notConnected}
 
+% outputs
+\newcommand{\additionalPinsOneName}{connectorLeft}
+\newcommand{\additionalPinsTwoName}{connectorRight}
+\newcommand{\pinOut}{Out}
+\newcommand{\pinIn}{In}
+
+\newcommand{\devicePinConcatenation}[2]{{#1} - {#2}}
 
 
 \title{Button Matrix - Documentation}
@@ -166,6 +174,42 @@
 
 \subsection{Pin Connections}
 
+
+\begin{table}[H]
+	\centering
+	\caption{Pins of the \atmegathreetwoeightp\ and their respective connections.}
+	\label{tab:atmega328pConnections}
+	\begin{tabular}{c|l}
+		\atmegathreetwoeightp\ pin  & connected to \\\hline
+		\vcc & \vcc\\
+		\ground & \ground\\
+		\aref & \vcc\\
+		\avcc & \vcc\\
+		B0 & \devicePinConcatenation{\additionalPinsOneName}{5}\\
+		B1 & \devicePinConcatenation{\additionalPinsTwoName}{4}\\
+		B2 & \devicePinConcatenation{\additionalPinsTwoName}{3}\\
+		B3 & \devicePinConcatenation{\spi}{\mosi}\\
+		B4 & \devicePinConcatenation{\spi}{\miso}\\
+		B5 & \devicePinConcatenation{\spi}{\clock}\\
+		B6 & \xtal\\
+		B7 & \xtal\\
+		C0 & \additionalPinsTwoName-2\\
+		C1 & \devicePinConcatenation{\latchName}{$\latchReset_i$}\\
+		C2 & \devicePinConcatenation{\parallelLoadName}{\parallelLoadClock}\\
+		C3 & \devicePinConcatenation{\parallelLoadName}{\invertPin{\parallelLoadParallelLoad}}\\
+		C4 & \devicePinConcatenation{\parallelLoadName}{$\parallelLoadInternalBit_{7}$}\\
+		C5 & \vccPeriphery\ enable\\
+		C6 & \invertPin{\reset}\\
+		D0 & \devicePinConcatenation{\additionalPinsOneName}{7}\\
+		D1 & \devicePinConcatenation{\additionalPinsOneName}{6}\\
+		D2 & \devicePinConcatenation{\shiftRegisterName}{\serialIn}\\
+		D3 & \devicePinConcatenation{\shiftRegisterName}{\invertPin{\outputEnable}}\\
+		D4 & \devicePinConcatenation{\shiftRegisterName}{\shiftRegisterClockOut}\\
+		D5 & \devicePinConcatenation{\shiftRegisterName}{\shiftRegisterClockIn}\\
+		D6 & \devicePinConcatenation{\shiftRegisterName}{\invertPin{\shiftRegisterClear}}\\
+		D7 & \devicePinConcatenation{\additionalPinsTwoName}{5}\\
+	\end{tabular}
+\end{table}
 
 
 
