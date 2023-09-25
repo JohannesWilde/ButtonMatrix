@@ -132,6 +132,9 @@ add_definitions("-funsigned-bitfields")
 add_definitions("-ffunction-sections")
 add_definitions("-c")
 
+# temporary workaround until avr-gcc 14 [see: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105523]
+add_definitions("--param=min-pagesize=0")
+
 ##########################################################################
 # include search paths
 ##########################################################################
