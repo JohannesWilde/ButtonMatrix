@@ -60,6 +60,7 @@ int main()
         // Apply the shifted-in bits to the output of the shift-registers.
         ledsOutShiftRegister::showShiftRegister();
 
-        _delay_ms(10);
+        // Wait some time as to not pull/push the shift-registers too often.
+        _delay_ms(50);
     }
 }
