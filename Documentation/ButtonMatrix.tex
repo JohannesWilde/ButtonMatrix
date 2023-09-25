@@ -321,6 +321,7 @@ For better understandability however some general remarks:
 		7 & 7
 	\end{tabular}
 \end{center}
+	Additionally the shiftregisters are in the wrong order, so that Byte 0 Bit 7 will be shifted in first, then Byte 0 Bit 6, ..., Byte 0 Bit0, Byte 1 Bit 7, Byte 1 Bit 6, ..., Byte 1 Bit 0, ..., Byte 4 Bit 7, Byte 4 Bit 6, ..., Byte 4 Bit 0. I will have to lead \parallelLoadSerialOut\ of the last \parallelLoadName\ [Byte 4] to the \atmegathreetwoeightp\ as input.
 	
 \end{enumerate}
 
@@ -542,6 +543,30 @@ $\latchOutput_i$ - Output $i$; $\latchReset_i$ - Reset $i$; $\latchSet_i$ - Set 
 		\end{scope}
 	\end{tikzpicture}
 	\caption{Schematic top view onto a npn-transistor and its representation in circuit diagrams.}
+	\label{fig:led}
+\end{figure}
+
+\subsection{pnp-Transistor}
+
+\begin{figure}[H]
+	\centering
+	\begin{tikzpicture}
+		\begin{scope}[scale=.45]
+			% outer shell
+			\draw (0,0) -- ++(3,0) -- ++(0,.5) arc (0:180:1.5) -- ++(0,-.5);
+			% plus
+			\draw (.5,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {E};
+			\draw (1.3,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {B};
+			\draw (2.1,.5) rectangle ++(.4,.4) ++(-.2,-1) node[anchor=north] {C};
+			\end{scope}
+			\begin{scope}[scale=.45, shift={(10,0)}]
+			\draw (0,0) node[pnp](transistor) {\empty}
+			(transistor.base) node[anchor=east] {B}
+			(transistor.collector) node[anchor=north] {C}
+			(transistor.emitter) node[anchor=south] {E};
+		\end{scope}
+	\end{tikzpicture}
+	\caption{Schematic top view onto a pnp-transistor and its representation in circuit diagrams.}
 	\label{fig:led}
 \end{figure}
 

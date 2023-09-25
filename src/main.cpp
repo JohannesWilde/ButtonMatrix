@@ -17,12 +17,12 @@ int main()
     typedef ArduinoUno arduinoUno;
 
     typedef arduinoUno::pinC5 VccPeriphery;
-    VccPeriphery::setType(AvrInputOutput::OutputHigh);
+    VccPeriphery::setType(AvrInputOutput::OutputLow);
 
     typedef RsLatch<DummyAvrPin1, arduinoUno::pinC1, DummyAvrPin1> rsLatch;
     rsLatch::initialize();
 
-    typedef ParallelInShiftRegister74HC165<8,
+    typedef ParallelInShiftRegister74HC165<32,
             arduinoUno::pinC3,
             arduinoUno::pinC2,
             DummyAvrPin1,
@@ -31,7 +31,7 @@ int main()
             DummyAvrPin1> parallelInShiftRegister;
     parallelInShiftRegister::initialize();
 
-    typedef ShiftRegister74HC595<8,
+    typedef ShiftRegister74HC595<32,
             arduinoUno::pinD2,
             arduinoUno::pinD5,
             arduinoUno::pinD4,
@@ -44,16 +44,15 @@ int main()
     shiftRegister::enableOutput();
     rsLatch::reset();
 
+    uint8_t data[4] = {0x01, 0x00, 0x00, 0x00};
 
-
-    uint8_t data = 0xff;
     while (true)
     {
         parallelInShiftRegister::loadParallelToShiftregister();
         rsLatch::reset();
-        parallelInShiftRegister::shiftOutBits(&data);
+        parallelInShiftRegister::shiftOutBits(data);
 
-        shiftRegister::shiftInBits(&data);
+        shiftRegister::shiftInBits(data);
         shiftRegister::showShiftRegister();
         _delay_ms(10);
     }
