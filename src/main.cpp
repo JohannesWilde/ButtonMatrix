@@ -5,6 +5,7 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
+
 #include "ArduinoDrivers/arduinouno.hpp"
 #include "ArduinoDrivers/dummytypes.hpp"
 
@@ -12,20 +13,181 @@
 #include "ArduinoDrivers/parallelinshiftregister74hc165.hpp"
 #include "ArduinoDrivers/shiftregister74hc595.hpp"
 
-struct MatrixAccess
+#include "ArduinoDrivers/button.hpp"
+#include "ArduinoDrivers/buttonTimed.hpp"
+#include "ArduinoDrivers/simplePinBit.hpp"
+
+
+static uint8_t constexpr matrixWidthAndHeight = 5;
+
+static uint8_t dataIn[4] = {0x00, 0x00, 0x00, 0x00};
+static uint8_t dataOut[4] = {0x00, 0x00, 0x00, 0x00};
+
+uint8_t constexpr shortPressCount = 2;
+uint8_t constexpr longPressCount = 8;
+
+template <uint8_t index>
+class Buttons;
+
+template <> class Buttons< 0> : public ButtonTimed<Button<SimplePinBitRead<0, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 1> : public ButtonTimed<Button<SimplePinBitRead<1, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 2> : public ButtonTimed<Button<SimplePinBitRead<2, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 3> : public ButtonTimed<Button<SimplePinBitRead<3, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 4> : public ButtonTimed<Button<SimplePinBitRead<4, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 5> : public ButtonTimed<Button<SimplePinBitRead<5, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 6> : public ButtonTimed<Button<SimplePinBitRead<6, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 7> : public ButtonTimed<Button<SimplePinBitRead<7, dataIn, 0>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 8> : public ButtonTimed<Button<SimplePinBitRead<0, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons< 9> : public ButtonTimed<Button<SimplePinBitRead<1, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<10> : public ButtonTimed<Button<SimplePinBitRead<2, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<11> : public ButtonTimed<Button<SimplePinBitRead<3, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<12> : public ButtonTimed<Button<SimplePinBitRead<4, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<13> : public ButtonTimed<Button<SimplePinBitRead<5, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<14> : public ButtonTimed<Button<SimplePinBitRead<6, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<15> : public ButtonTimed<Button<SimplePinBitRead<7, dataIn, 1>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<16> : public ButtonTimed<Button<SimplePinBitRead<0, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<17> : public ButtonTimed<Button<SimplePinBitRead<1, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<18> : public ButtonTimed<Button<SimplePinBitRead<2, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<19> : public ButtonTimed<Button<SimplePinBitRead<3, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<20> : public ButtonTimed<Button<SimplePinBitRead<4, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<21> : public ButtonTimed<Button<SimplePinBitRead<5, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<22> : public ButtonTimed<Button<SimplePinBitRead<6, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<23> : public ButtonTimed<Button<SimplePinBitRead<7, dataIn, 2>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+template <> class Buttons<24> : public ButtonTimed<Button<SimplePinBitRead<0, dataIn, 3>, SimplePin::State::One>, shortPressCount, longPressCount> {/* intentionally empty */};
+
+
+SimplePin::State constexpr ledStateOn = SimplePin::State::One;
+
+template <uint8_t index>
+class Leds;
+
+template <> class Leds< 0> : public SimpleOnOff<SimplePinBit<0, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 1> : public SimpleOnOff<SimplePinBit<1, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 2> : public SimpleOnOff<SimplePinBit<2, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 3> : public SimpleOnOff<SimplePinBit<3, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 4> : public SimpleOnOff<SimplePinBit<4, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 5> : public SimpleOnOff<SimplePinBit<5, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 6> : public SimpleOnOff<SimplePinBit<6, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 7> : public SimpleOnOff<SimplePinBit<7, dataOut, 0>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 8> : public SimpleOnOff<SimplePinBit<0, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds< 9> : public SimpleOnOff<SimplePinBit<1, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<10> : public SimpleOnOff<SimplePinBit<2, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<11> : public SimpleOnOff<SimplePinBit<3, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<12> : public SimpleOnOff<SimplePinBit<4, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<13> : public SimpleOnOff<SimplePinBit<5, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<14> : public SimpleOnOff<SimplePinBit<6, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<15> : public SimpleOnOff<SimplePinBit<7, dataOut, 1>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<16> : public SimpleOnOff<SimplePinBit<0, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<17> : public SimpleOnOff<SimplePinBit<1, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<18> : public SimpleOnOff<SimplePinBit<2, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<19> : public SimpleOnOff<SimplePinBit<3, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<20> : public SimpleOnOff<SimplePinBit<4, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<21> : public SimpleOnOff<SimplePinBit<5, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<22> : public SimpleOnOff<SimplePinBit<6, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<23> : public SimpleOnOff<SimplePinBit<7, dataOut, 2>, ledStateOn> {/* intentionally empty */};
+template <> class Leds<24> : public SimpleOnOff<SimplePinBit<0, dataOut, 3>, ledStateOn> {/* intentionally empty */};
+
+
+// Template-Meta-Programming loop
+template<uint8_t Index, template<uint8_t I> class Wrapper, typename... Args>
+struct Loop
 {
-    uint8_t byteIndex;
-    uint8_t bitMask;
+    static void impl(Args... args)
+    {
+        //Execute some code
+        Wrapper<Index>::impl(args...);
+
+        //Recurse
+        Loop<Index - 1, Wrapper>::impl();
+    }
 };
 
-template <uint8_t matrixWidth, uint8_t matrixHeight>
-MatrixAccess matrixAccess(uint8_t const index)
+// Loop end specialization.
+template<template<uint8_t I> class Wrapper, typename... Args>
+struct Loop<0, Wrapper, Args...>
 {
-    uint8_t const byteIndex = index / 8;
-    uint8_t const bitOffset = index - 8 * byteIndex;
-    uint8_t const bitMask = (0b1 << bitOffset);
-    return MatrixAccess{byteIndex, bitMask};
-}
+    static void impl(Args... args)
+    {
+        //Execute some code
+        Wrapper<0>::impl(args...);
+    }
+};
+
+// Wrappers for loops.
+template<uint8_t Index>
+struct WrapperInitialize
+{
+    static void impl()
+    {
+        Buttons<Index>::initialize();
+        Leds<Index>::initialize();
+    }
+};
+
+
+template<uint8_t Index>
+struct WrapperDeinitialize
+{
+    static void impl()
+    {
+        Buttons<Index>::deinitialize();
+        Leds<Index>::deinitialize();
+    }
+};
+
+
+template<uint8_t Index>
+struct WrapperUpdate
+{
+    static void impl()
+    {
+        Buttons<Index>::update();
+    }
+};
+
+
+
+
+template<bool condition, uint8_t NeighborIndex>
+struct ToggleNeighbor
+{
+    static void impl();
+};
+
+template<uint8_t NeighborIndex>
+struct ToggleNeighbor<true, NeighborIndex>
+{
+    static void impl()
+    {
+        Leds<NeighborIndex>::toggle();
+    }
+};
+
+template<uint8_t NeighborIndex>
+struct ToggleNeighbor<false, NeighborIndex>
+{
+    static void impl()
+    {
+        // intentionally empty
+    }
+};
+
+template<uint8_t Index>
+struct WrapperToggleNeighborReleasedAfterShort
+{
+    static void impl()
+    {
+        if (Buttons<Index>::releasedAfterShort())
+        {
+            ToggleNeighbor<true, Index>::impl();
+            ToggleNeighbor<(0 != (Index % matrixWidthAndHeight)), static_cast<uint8_t>(Index - 1)>::impl();
+            ToggleNeighbor<((matrixWidthAndHeight - 1) != (Index % matrixWidthAndHeight)), (Index + 1)>::impl();
+            ToggleNeighbor<(matrixWidthAndHeight <= Index), static_cast<uint8_t>(Index - matrixWidthAndHeight)>::impl();
+            ToggleNeighbor<((matrixWidthAndHeight * (matrixWidthAndHeight - 1)) > Index), static_cast<uint8_t>(Index + matrixWidthAndHeight)>::impl();
+        }
+    }
+};
+
 
 int main()
 {
@@ -38,7 +200,6 @@ int main()
     buttonsInLatcher::initialize();
 
     uint8_t constexpr shiftRegisterBitsCount = 32;
-    uint8_t constexpr matrixWidthAndHeight = 5;
     static_assert(shiftRegisterBitsCount >= (matrixWidthAndHeight * matrixWidthAndHeight));
 
     typedef ParallelInShiftRegister74HC165<shiftRegisterBitsCount,
@@ -63,8 +224,7 @@ int main()
     ledsOutShiftRegister::enableOutput();
     buttonsInLatcher::reset();
 
-    uint8_t dataIn[4] = {0x00, 0x00, 0x00, 0x00};
-    uint8_t dataOut[4] = {0x00, 0x00, 0x00, 0x00};
+    Loop<24, WrapperInitialize>::impl();
 
     while (true)
     {
@@ -75,41 +235,8 @@ int main()
         // Actually copy the latched shift-register values to data.
         buttonsInShiftRegister::shiftOutBits(dataIn);
 
-        for (uint8_t index = 0; index < (matrixWidthAndHeight * matrixWidthAndHeight); ++index)
-        {
-            MatrixAccess matrixAccessIn = matrixAccess<matrixWidthAndHeight, matrixWidthAndHeight>(index);
-
-            if (0 != (dataIn[matrixAccessIn.byteIndex] & matrixAccessIn.bitMask))
-            {
-                {
-                    dataOut[matrixAccessIn.byteIndex] ^= matrixAccessIn.bitMask;
-                }
-                if (0 != (index % matrixWidthAndHeight))
-                {
-                    uint8_t const indexNeighbor = index - 1;
-                    MatrixAccess matrixAccessNeighbor = matrixAccess<matrixWidthAndHeight, matrixWidthAndHeight>(indexNeighbor);
-                    dataOut[matrixAccessNeighbor.byteIndex] ^= matrixAccessNeighbor.bitMask;
-                }
-                if ((matrixWidthAndHeight - 1) != (index % matrixWidthAndHeight))
-                {
-                    uint8_t const indexNeighbor = index + 1;
-                    MatrixAccess matrixAccessNeighbor = matrixAccess<matrixWidthAndHeight, matrixWidthAndHeight>(indexNeighbor);
-                    dataOut[matrixAccessNeighbor.byteIndex] ^= matrixAccessNeighbor.bitMask;
-                }
-                if (matrixWidthAndHeight <= index)
-                {
-                    uint8_t const indexNeighbor = index - matrixWidthAndHeight;
-                    MatrixAccess matrixAccessNeighbor = matrixAccess<matrixWidthAndHeight, matrixWidthAndHeight>(indexNeighbor);
-                    dataOut[matrixAccessNeighbor.byteIndex] ^= matrixAccessNeighbor.bitMask;
-                }
-                if ((matrixWidthAndHeight * (matrixWidthAndHeight - 1)) > index)
-                {
-                    uint8_t const indexNeighbor = index + matrixWidthAndHeight;
-                    MatrixAccess matrixAccessNeighbor = matrixAccess<matrixWidthAndHeight, matrixWidthAndHeight>(indexNeighbor);
-                    dataOut[matrixAccessNeighbor.byteIndex] ^= matrixAccessNeighbor.bitMask;
-                }
-            }
-        }
+        Loop<24, WrapperUpdate>::impl();
+        Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
 
         // Move data to the LED shiftRegister.
         ledsOutShiftRegister::shiftInBits(dataOut);
@@ -117,6 +244,6 @@ int main()
         ledsOutShiftRegister::showShiftRegister();
 
         // Wait some time as to not pull/push the shift-registers too often.
-        _delay_ms(300);
+        _delay_ms(100);
     }
 }
