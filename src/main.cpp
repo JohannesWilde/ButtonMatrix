@@ -211,6 +211,19 @@ struct WrapperToggleNeighborReleasedAfterShort
 };
 
 
+enum class Mode
+{
+    Game,
+    LevelSelect
+};
+
+typedef Buttons< 24> ButtonMenu;
+typedef Buttons< 4> ButtonEscapeReset;
+typedef Buttons<19> ButtonUp;
+typedef Buttons< 9> ButtonDown;
+typedef Buttons<14> ButtonEnter;
+
+
 int main()
 {
     typedef ArduinoUno arduinoUno;
@@ -248,32 +261,65 @@ int main()
 
     Loop<24, WrapperInitialize>::impl();
 
-//    while (true)
-//    {
-//        // Latch bits in shift-register for read-out from the buttons.
-//        buttonsInShiftRegister::loadParallelToShiftregister();
-//        // Reset latches in front of read-out-shiftregisters.
-//        buttonsInLatcher::reset();
-//        // Actually copy the latched shift-register values to data.
-//        buttonsInShiftRegister::shiftOutBits(dataIn);
+    // todo: save/load
+    Mode mode = Mode::Game;
+    uint8_t levelIndex = 0;
 
-//        Loop<24, WrapperUpdate>::impl();
-//        Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+//    dataOut = levels[levelIndex];
 
-//        // Move data to the LED shiftRegister.
-//        ledsOutShiftRegister::shiftInBits(dataOut);
-//        // Apply the shifted-in bits to the output of the shift-registers.
-//        ledsOutShiftRegister::showShiftRegister();
-
-//        // Wait some time as to not pull/push the shift-registers too often.
-//        _delay_ms(100);
-//    }
-
-    uint8_t index = 0;
     while (true)
     {
-        memcpy(dataOut, digits[index], 3);
-        index = ((index + 1) % (sizeof(digits) / sizeof(digits[0])));
+        // Latch bits in shift-register for read-out from the buttons.
+        buttonsInShiftRegister::loadParallelToShiftregister();
+        // Reset latches in front of read-out-shiftregisters.
+        buttonsInLatcher::reset();
+        // Actually copy the latched shift-register values to data.
+        buttonsInShiftRegister::shiftOutBits(dataIn);
+
+        Loop<24, WrapperUpdate>::impl();
+
+        switch (mode)
+        {
+        case Mode::Game:
+        {
+            if (ButtonMenu::isDownLong())
+            {
+                mode = Mode::LevelSelect;
+            }
+            else if (ButtonEscapeReset::releasedAfterLong())
+            {
+                memset(dataOut, 0, sizeof(dataOut));
+            }
+            else
+            {
+                Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+            }
+            break;
+        }
+        case Mode::LevelSelect:
+        {
+            if (ButtonUp::releasedAfterShort())
+            {
+                ++levelIndex;
+            }
+            if (ButtonDown::releasedAfterShort())
+            {
+                --levelIndex;
+            }
+
+            if (ButtonEnter::releasedAfterShort())
+            {
+                mode = Mode::Game;
+                memset(dataOut, 0, sizeof(dataOut));
+            }
+            else
+            {
+                memcpy(dataOut, digits[levelIndex % 16], 3);
+            }
+
+            break;
+        }
+        }
 
         // Move data to the LED shiftRegister.
         ledsOutShiftRegister::shiftInBits(dataOut);
@@ -281,6 +327,6 @@ int main()
         ledsOutShiftRegister::showShiftRegister();
 
         // Wait some time as to not pull/push the shift-registers too often.
-        _delay_ms(1000);
+        _delay_ms(100);
     }
 }
