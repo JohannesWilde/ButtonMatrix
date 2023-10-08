@@ -17,6 +17,8 @@
 #include "ArduinoDrivers/buttonTimed.hpp"
 #include "ArduinoDrivers/simplePinBit.hpp"
 
+#include <string.h>
+
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
 
@@ -86,6 +88,26 @@ template <> class Leds<21> : public SimpleOnOff<SimplePinBit<5, dataOut, 2>, led
 template <> class Leds<22> : public SimpleOnOff<SimplePinBit<6, dataOut, 2>, ledStateOn> {/* intentionally empty */};
 template <> class Leds<23> : public SimpleOnOff<SimplePinBit<7, dataOut, 2>, ledStateOn> {/* intentionally empty */};
 template <> class Leds<24> : public SimpleOnOff<SimplePinBit<0, dataOut, 3>, ledStateOn> {/* intentionally empty */};
+
+
+static uint8_t constexpr digits[16][3] = {
+    {0b10100111, 0b10010100, 0b01110010, }, // 0
+    {0b00100001, 0b10010100, 0b00010001, }, // 1
+    {0b10000111, 0b10011100, 0b01110000, }, // 2
+    {0b00100111, 0b10001100, 0b01110000, }, // 3
+    {0b00100001, 0b10011100, 0b01010010, }, // 4
+    {0b00100111, 0b00011100, 0b01110010, }, // 5
+    {0b10100111, 0b00011100, 0b01110010, }, // 6
+    {0b10000100, 0b10001000, 0b01110000, }, // 7
+    {0b10100111, 0b10011100, 0b01110010, }, // 8
+    {0b00100111, 0b10011100, 0b01110010, }, // 9
+    {0b10100101, 0b10011100, 0b01110010, }, // A
+    {0b10100111, 0b00011100, 0b01000010, }, // b
+    {0b10000111, 0b00010000, 0b01110010, }, // C
+    {0b10100111, 0b10011100, 0b00010000, }, // d
+    {0b10000111, 0b00011100, 0b01110010, }, // E
+    {0b10000100, 0b00011100, 0b01110010, }, // F
+};
 
 
 // Template-Meta-Programming loop
@@ -226,17 +248,32 @@ int main()
 
     Loop<24, WrapperInitialize>::impl();
 
+//    while (true)
+//    {
+//        // Latch bits in shift-register for read-out from the buttons.
+//        buttonsInShiftRegister::loadParallelToShiftregister();
+//        // Reset latches in front of read-out-shiftregisters.
+//        buttonsInLatcher::reset();
+//        // Actually copy the latched shift-register values to data.
+//        buttonsInShiftRegister::shiftOutBits(dataIn);
+
+//        Loop<24, WrapperUpdate>::impl();
+//        Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+
+//        // Move data to the LED shiftRegister.
+//        ledsOutShiftRegister::shiftInBits(dataOut);
+//        // Apply the shifted-in bits to the output of the shift-registers.
+//        ledsOutShiftRegister::showShiftRegister();
+
+//        // Wait some time as to not pull/push the shift-registers too often.
+//        _delay_ms(100);
+//    }
+
+    uint8_t index = 0;
     while (true)
     {
-        // Latch bits in shift-register for read-out from the buttons.
-        buttonsInShiftRegister::loadParallelToShiftregister();
-        // Reset latches in front of read-out-shiftregisters.
-        buttonsInLatcher::reset();
-        // Actually copy the latched shift-register values to data.
-        buttonsInShiftRegister::shiftOutBits(dataIn);
-
-        Loop<24, WrapperUpdate>::impl();
-        Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+        memcpy(dataOut, digits[index], 3);
+        index = ((index + 1) % (sizeof(digits) / sizeof(digits[0])));
 
         // Move data to the LED shiftRegister.
         ledsOutShiftRegister::shiftInBits(dataOut);
@@ -244,6 +281,6 @@ int main()
         ledsOutShiftRegister::showShiftRegister();
 
         // Wait some time as to not pull/push the shift-registers too often.
-        _delay_ms(100);
+        _delay_ms(1000);
     }
 }
