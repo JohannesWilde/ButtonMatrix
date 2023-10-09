@@ -284,6 +284,17 @@ typedef Buttons<19> ButtonUp;
 typedef Buttons< 9> ButtonDown;
 typedef Buttons<14> ButtonEnter;
 
+struct BackupValues
+{
+    uint8_t levelIndex;
+    uint8_t dataOut[4];
+
+    BackupValues(uint8_t const levelIndex_, uint8_t const dataOut_[4])
+        : levelIndex(levelIndex_)
+    {
+        memcpy(dataOut, dataOut_, sizeof(dataOut));
+    }
+};
 
 int main()
 {
@@ -307,8 +318,10 @@ int main()
     Mode mode = Mode::Game;
     uint8_t levelIndex = 0;
 
-    initializeDataOutToLevel(levelIndex);
+    BackupValues backupValues(levelIndex, dataOut);
 
+
+    initializeDataOutToLevel(levelIndex);
 
     while (true)
     {
@@ -316,6 +329,8 @@ int main()
 
         if (ButtonOnOff::isUpLong())
         {
+            backupValues = BackupValues(levelIndex, dataOut);
+
             // turn off display
             memset(dataOut, 0, 4);
             displayDataOut();
@@ -325,6 +340,10 @@ int main()
                 // Todo: make the AVR sleep.
                 ButtonOnOff::update();
             }
+        }
+        else if (ButtonOnOff::pressedAfterLong())
+        {
+            memcpy(dataOut, backupValues.dataOut, 4);
         }
 
 
@@ -344,6 +363,7 @@ int main()
             if (ButtonMenu::isDownLong())
             {
                 mode = Mode::LevelSelect;
+                backupValues = BackupValues(levelIndex, dataOut);
             }
             else if (ButtonEscapeReset::isDownLong())
             {
@@ -359,17 +379,35 @@ int main()
         {
             if (ButtonUp::releasedAfterShort())
             {
-                levelIndex = (levelIndex + 1) % numberOfLevels;
+                ++levelIndex;
+
+                if (numberOfLevels == levelIndex)
+                {
+                    levelIndex = 0;
+                }
             }
             if (ButtonDown::releasedAfterShort())
             {
-                levelIndex = (levelIndex - 1) % numberOfLevels;
+                if (0 == levelIndex)
+                {
+                    levelIndex = numberOfLevels - 1;
+                }
+                else
+                {
+                    --levelIndex;
+                }
             }
 
             if (ButtonEnter::releasedAfterShort())
             {
                 mode = Mode::Game;
                 initializeDataOutToLevel(levelIndex);
+            }
+            else if (ButtonEscapeReset::releasedAfterShort())
+            {
+                memcpy(dataOut, backupValues.dataOut, 4);
+                levelIndex = backupValues.levelIndex;
+                mode = Mode::Game;
             }
             else
             {
