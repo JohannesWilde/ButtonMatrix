@@ -340,9 +340,8 @@ int main()
                 // Todo: make the AVR sleep.
                 ButtonOnOff::update();
             }
-        }
-        else if (ButtonOnOff::pressedAfterLong())
-        {
+
+            // restore display
             memcpy(dataOut, backupValues.dataOut, 4);
         }
 
