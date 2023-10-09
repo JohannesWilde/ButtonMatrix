@@ -21,15 +21,15 @@
 #include <string.h>
 
 
-typedef Button<SimplePinAvrRead<ArduinoUno::D8, AvrInputOutput::InputPullup>, SimplePin::State::Zero> ButtonOnOff;
+uint8_t constexpr shortPressCount = 2;
+uint8_t constexpr longPressCount = 8;
+
+typedef ButtonTimed<Button<SimplePinAvrRead<ArduinoUno::D8, AvrInputOutput::InputPullup>, SimplePin::State::Zero>, shortPressCount, longPressCount> ButtonOnOff;
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
 
 static uint8_t dataIn[4] = {0x00, 0x00, 0x00, 0x00};
 static uint8_t dataOut[4] = {0x00, 0x00, 0x00, 0x00};
-
-uint8_t constexpr shortPressCount = 2;
-uint8_t constexpr longPressCount = 8;
 
 template <uint8_t index>
 class Buttons;
@@ -282,8 +282,9 @@ int main()
         buttonsInShiftRegister::shiftOutBits(dataIn);
 
         Loop<24, WrapperUpdate>::impl();
+        ButtonOnOff::update();
 
-        if (ButtonOnOff::isDown())
+        if (ButtonOnOff::isDownLong())
         {
             Leds<24>::set(SimpleOnOffProperties::State::On);
         }
