@@ -15,10 +15,13 @@
 
 #include "ArduinoDrivers/button.hpp"
 #include "ArduinoDrivers/buttonTimed.hpp"
+#include "ArduinoDrivers/simplePinAvr.hpp"
 #include "ArduinoDrivers/simplePinBit.hpp"
 
 #include <string.h>
 
+
+typedef Button<SimplePinAvrRead<ArduinoUno::D8, AvrInputOutput::InputPullup>, SimplePin::State::Zero> ButtonOnOff;
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
 
@@ -261,9 +264,11 @@ int main()
 
     Loop<24, WrapperInitialize>::impl();
 
-    // todo: save/load
-    Mode mode = Mode::Game;
-    uint8_t levelIndex = 0;
+    ButtonOnOff::initialize();
+
+//    // todo: save/load
+//    Mode mode = Mode::Game;
+//    uint8_t levelIndex = 0;
 
 //    dataOut = levels[levelIndex];
 
@@ -278,48 +283,57 @@ int main()
 
         Loop<24, WrapperUpdate>::impl();
 
-        switch (mode)
+        if (ButtonOnOff::isDown())
         {
-        case Mode::Game:
-        {
-            if (ButtonMenu::isDownLong())
-            {
-                mode = Mode::LevelSelect;
-            }
-            else if (ButtonEscapeReset::releasedAfterLong())
-            {
-                memset(dataOut, 0, sizeof(dataOut));
-            }
-            else
-            {
-                Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
-            }
-            break;
+            Leds<24>::set(SimpleOnOffProperties::State::On);
         }
-        case Mode::LevelSelect:
+        else
         {
-            if (ButtonUp::releasedAfterShort())
-            {
-                ++levelIndex;
-            }
-            if (ButtonDown::releasedAfterShort())
-            {
-                --levelIndex;
-            }
+            Leds<24>::set(SimpleOnOffProperties::State::Off);
+        }
 
-            if (ButtonEnter::releasedAfterShort())
-            {
-                mode = Mode::Game;
-                memset(dataOut, 0, sizeof(dataOut));
-            }
-            else
-            {
-                memcpy(dataOut, digits[levelIndex % 16], 3);
-            }
+//        switch (mode)
+//        {
+//        case Mode::Game:
+//        {
+//            if (ButtonMenu::isDownLong())
+//            {
+//                mode = Mode::LevelSelect;
+//            }
+//            else if (ButtonEscapeReset::releasedAfterLong())
+//            {
+//                memset(dataOut, 0, sizeof(dataOut));
+//            }
+//            else
+//            {
+//                Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+//            }
+//            break;
+//        }
+//        case Mode::LevelSelect:
+//        {
+//            if (ButtonUp::releasedAfterShort())
+//            {
+//                ++levelIndex;
+//            }
+//            if (ButtonDown::releasedAfterShort())
+//            {
+//                --levelIndex;
+//            }
 
-            break;
-        }
-        }
+//            if (ButtonEnter::releasedAfterShort())
+//            {
+//                mode = Mode::Game;
+//                memset(dataOut, 0, sizeof(dataOut));
+//            }
+//            else
+//            {
+//                memcpy(dataOut, digits[levelIndex % 16], 3);
+//            }
+
+//            break;
+//        }
+//        }
 
         // Move data to the LED shiftRegister.
         ledsOutShiftRegister::shiftInBits(dataOut);
