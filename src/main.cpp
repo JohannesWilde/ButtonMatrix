@@ -134,6 +134,8 @@ static uint8_t constexpr digits[16][3] = {
 uint8_t constexpr levels[][4] = {
     {0b00000000, 0b00010000, 0b00000000, 0b00000000},
     {0b00010001, 0b00000000, 0b00010000, 0b00000001},
+    {0b01000000, 0b00010000, 0b00000100, 0b00000000},
+//    {0b, 0b, 0b, 0b},
 };
 uint8_t constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
 
@@ -147,7 +149,7 @@ struct Loop
         Wrapper<Index>::impl(args...);
 
         //Recurse
-        Loop<Index - 1, Wrapper>::impl();
+        Loop<Index - 1, Wrapper, Args...>::impl(args...);
     }
 };
 
@@ -264,6 +266,11 @@ static void initializeDataOutToLevel(uint8_t const levelIndex)
     Loop<24, WrapperToggleNeighborIsDown>::impl();
 }
 
+static void clearDataOut()
+{
+    memset(dataOut, 0, sizeof(dataOut));
+}
+
 static void displayDataOut()
 {
     // Move data to the LED shiftRegister.
@@ -283,6 +290,35 @@ typedef Buttons< 4> ButtonEscapeReset;
 typedef Buttons<19> ButtonUp;
 typedef Buttons< 9> ButtonDown;
 typedef Buttons<14> ButtonEnter;
+
+
+template <uint8_t index>
+class LedLevels;
+
+template <> class LedLevels<0> : public Leds<3> {};
+template <> class LedLevels<1> : public Leds<8> {};
+template <> class LedLevels<2> : public Leds<13> {};
+template <> class LedLevels<3> : public Leds<18> {};
+template <> class LedLevels<4> : public Leds<23> {};
+
+template<uint8_t Index>
+struct WrapperLedLevelsUpdate
+{
+    static_assert(matrixWidthAndHeight > Index);
+
+    static void impl(uint8_t const levelIndex)
+    {
+        if (Index <= (levelIndex / 0x10))
+        {
+            LedLevels<Index>::set(SimpleOnOffProperties::State::On);
+        }
+        else
+        {
+            LedLevels<Index>::set(SimpleOnOffProperties::State::Off);
+        }
+    }
+};
+
 
 struct BackupValues
 {
@@ -332,7 +368,7 @@ int main()
             backupValues = BackupValues(levelIndex, dataOut);
 
             // turn off display
-            memset(dataOut, 0, 4);
+            clearDataOut();
             displayDataOut();
 
             while (ButtonOnOff::isUpLong())
@@ -363,6 +399,7 @@ int main()
             {
                 mode = Mode::LevelSelect;
                 backupValues = BackupValues(levelIndex, dataOut);
+                clearDataOut();
             }
             else if (ButtonEscapeReset::isDownLong())
             {
@@ -411,6 +448,8 @@ int main()
             else
             {
                 memcpy(dataOut, digits[levelIndex % 16], 3);
+
+                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(levelIndex);
             }
 
             break;
