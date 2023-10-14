@@ -550,7 +550,8 @@ int main()
             if (ButtonMenu::releasedAfterShort() || ButtonMenu::isDownLong())
             {
                 // open menu
-                backupValues = BackupValues(levelIndex, levels[levelIndex], 0);
+                initializeDataOutToLevel(levelIndex);
+                backupValues = BackupValues(levelIndex, dataOut, 0);
                 clearDataOut();
                 mode = Mode::LevelSelect;
             }
