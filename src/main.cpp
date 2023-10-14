@@ -20,6 +20,24 @@
 
 #include <string.h>
 
+
+// https://stackoverflow.com/questions/6938219/how-to-check-whether-all-bytes-in-a-memory-block-are-zero
+template<size_t size>
+static int memvcmp(uint8_t const * memory, uint8_t const value)
+{
+    if (0 == size)
+    {
+        return 0;
+    }
+    else
+    {
+        int const firstByteComparison = memcmp(memory, &value, 1);
+        return (0 == firstByteComparison) ? memcmp(memory, memory + 1, size - 1) : firstByteComparison;
+    }
+}
+
+
+
 static uint8_t constexpr matrixWidthAndHeight = 5;
 
 typedef RsLatch<DummyAvrPin1, ArduinoUno::pinC1, DummyAvrPin1> buttonsInLatcher;
@@ -138,6 +156,30 @@ uint8_t constexpr levels[][4] = {
 //    {0b, 0b, 0b, 0b},
 };
 uint8_t constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
+
+
+uint8_t incrementedLevelIndex(uint8_t const levelIndex)
+{
+    uint8_t modLevelIndex = levelIndex + 1;
+
+    if (numberOfLevels == modLevelIndex)
+    {
+        modLevelIndex = 0;
+    }
+
+    return modLevelIndex;
+}
+
+uint8_t decrementedLevelIndex(uint8_t const levelIndex)
+{
+    uint8_t modLevelIndex = numberOfLevels - 1;
+    if (0 != levelIndex)
+    {
+        modLevelIndex = levelIndex - 1;
+    }
+
+    return modLevelIndex;
+}
 
 // Template-Meta-Programming loop
 template<uint8_t Index, template<uint8_t I> class Wrapper, typename... Args>
@@ -281,8 +323,9 @@ static void displayDataOut()
 
 enum class Mode
 {
+    LevelSelect,
     Game,
-    LevelSelect
+    GameFinished
 };
 
 typedef Buttons< 24> ButtonMenu;
@@ -319,9 +362,23 @@ struct WrapperLedLevelsUpdate
     }
 };
 
+template<uint8_t Index>
+struct WrapperCountButtonsReleasedAfterShort
+{
+    static_assert((matrixWidthAndHeight * matrixWidthAndHeight) > Index);
+
+    static void impl(uint8_t & count)
+    {
+        if (Buttons<Index>::releasedAfterShort())
+        {
+            ++count;
+        }
+    }
+};
+
 /* Never use this for actual HW buttons - but only for the update from a level input. */
 template<uint8_t Index>
-struct WrapperCountPressedButtons
+struct WrapperCountButtonsPressed_
 {
     static_assert((matrixWidthAndHeight * matrixWidthAndHeight) > Index);
 
@@ -413,50 +470,15 @@ int main()
 
         switch (mode)
         {
-        case Mode::Game:
-        {
-            if (ButtonMenu::isDownLong())
-            {
-                mode = Mode::LevelSelect;
-                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
-                clearDataOut();
-            }
-            else if (ButtonEscapeReset::isDownLong())
-            {
-                initializeDataOutToLevel(levelIndex);
-                buttonPresses = 0;
-            }
-            else
-            {
-                Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
-
-                uint8_t pressedButtonsCount = 0;
-                Loop<24, WrapperCountPressedButtons, uint8_t &>::impl(pressedButtonsCount);
-                buttonPresses += pressedButtonsCount;
-            }
-            break;
-        }
         case Mode::LevelSelect:
         {
             if (ButtonUp::releasedAfterShort())
             {
-                ++levelIndex;
-
-                if (numberOfLevels == levelIndex)
-                {
-                    levelIndex = 0;
-                }
+                levelIndex = incrementedLevelIndex(levelIndex);
             }
             if (ButtonDown::releasedAfterShort())
             {
-                if (0 == levelIndex)
-                {
-                    levelIndex = numberOfLevels - 1;
-                }
-                else
-                {
-                    --levelIndex;
-                }
+                levelIndex = decrementedLevelIndex(levelIndex);
             }
 
             if (ButtonEnter::releasedAfterShort())
@@ -475,10 +497,92 @@ int main()
             else
             {
                 // Update level selection display.
-                memcpy(dataOut, digits[levelIndex % 16], 3);
+                memcpy(dataOut, digits[levelIndex % 0x10], 3);
                 Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(levelIndex);
             }
 
+            break;
+        }
+        case Mode::Game:
+        {
+            if (ButtonMenu::isDownLong())
+            {
+                mode = Mode::LevelSelect;
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+                clearDataOut();
+            }
+            else if (ButtonEscapeReset::isDownLong())
+            {
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+            }
+            else
+            {
+                uint8_t pressedButtonsCount = 0;
+                Loop<24, WrapperCountButtonsReleasedAfterShort, uint8_t &>::impl(pressedButtonsCount);
+
+                // Only update if any button pressed.
+                if (0 < pressedButtonsCount)
+                {
+                    // Don't overflow but top off at UINT8_MAX.
+                    if ((UINT8_MAX - buttonPresses) >= pressedButtonsCount)
+                    {
+                        buttonPresses += pressedButtonsCount;
+                    }
+                    else
+                    {
+                        buttonPresses = UINT8_MAX;
+                    }
+
+
+                    Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+
+                    if (0 == memvcmp<4>(dataOut, 0))
+                    {
+                        mode = Mode::GameFinished;
+                    }
+                }
+            }
+            break;
+        }
+        case Mode::GameFinished:
+        {
+            if (ButtonMenu::releasedAfterShort() || ButtonMenu::isDownLong())
+            {
+                // open menu
+                backupValues = BackupValues(levelIndex, levels[levelIndex], 0);
+                clearDataOut();
+                mode = Mode::LevelSelect;
+            }
+            else if (ButtonEscapeReset::releasedAfterShort() || ButtonEscapeReset::isDownLong())
+            {
+                // restart level
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+                mode = Mode::Game;
+            }
+            else if (ButtonEnter::releasedAfterShort() || ButtonEnter::isDownLong())
+            {
+                // advance to next level
+                levelIndex = incrementedLevelIndex(levelIndex);
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+                mode = Mode::Game;
+            }
+            else
+            {
+                // show the number of superfluous button presses
+                memcpy(dataIn, levels[levelIndex], sizeof(dataIn)); // misuse dataIn - it will be overwritten on next read-in from HW
+                uint8_t pressedButtonsCountForLevel = 0;
+                Loop<24, WrapperCountButtonsPressed_, uint8_t &>::impl(pressedButtonsCountForLevel);
+
+                uint8_t const buttonPressesDelta = buttonPresses - pressedButtonsCountForLevel;
+                // Update level selection display.
+                memcpy(dataOut, digits[buttonPressesDelta % 0x10], 3);
+                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(buttonPressesDelta);
+
+                Leds<14>::set(SimpleOnOffProperties::State::On);
+            }
             break;
         }
         }
