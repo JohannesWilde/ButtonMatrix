@@ -529,8 +529,11 @@ int main()
             }
             else
             {
-                // restore display
+                // restore
+                levelIndex = backupValues.levelIndex;
+                buttonPresses = backupValues.buttonPresses;
                 memcpy(dataOut, backupValues.dataOut, 4);
+                mode = backupValues.mode;
             }
         }
 
