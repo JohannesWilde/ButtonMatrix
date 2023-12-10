@@ -400,12 +400,15 @@ struct BackupValues
     uint8_t levelIndex;
     uint8_t dataOut[4];
     uint8_t buttonPresses;
+    Mode mode;
 
     BackupValues(uint8_t const levelIndex_,
                  uint8_t const dataOut_[4],
-                 uint8_t const buttonPresses)
+                 uint8_t const buttonPresses,
+                 Mode const mode)
         : levelIndex(levelIndex_)
         , buttonPresses(buttonPresses)
+        , mode(mode)
     {
         memcpy(dataOut, dataOut_, sizeof(dataOut));
     }
@@ -478,12 +481,12 @@ int main()
     uint8_t levelIndex = 0;
     uint8_t buttonPresses = 0;
 
-    BackupValues backupValues(levelIndex, dataOut, buttonPresses);
+    BackupValues backupValues(levelIndex, dataOut, buttonPresses, mode);
 
     bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
     if (!readBack)
     {
-        backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+        backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
         initializeDataOutToLevel(levelIndex);
     }
     else
@@ -491,8 +494,8 @@ int main()
         levelIndex = backupValues.levelIndex;
         buttonPresses = backupValues.buttonPresses;
         memcpy(dataOut, backupValues.dataOut, 4);
+        mode = backupValues.mode;
     }
-
 
     while (true)
     {
@@ -500,7 +503,7 @@ int main()
 
         if (ButtonOnOff::isUpLong())
         {
-            backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+            backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
 
             Eeprom::writeWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
 
@@ -518,10 +521,11 @@ int main()
             bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
             if (!readBack)
             {
+                mode = Mode::Game;
                 levelIndex = 0;
                 buttonPresses = 0;
                 initializeDataOutToLevel(levelIndex);
-                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
             }
             else
             {
@@ -580,7 +584,7 @@ int main()
             if (ButtonMenu::isDownLong())
             {
                 mode = Mode::LevelSelect;
-                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
                 clearDataOut();
             }
             else if (ButtonEscapeReset::isDownLong())
@@ -623,7 +627,7 @@ int main()
             {
                 // open menu
                 initializeDataOutToLevel(levelIndex);
-                backupValues = BackupValues(levelIndex, dataOut, 0);
+                backupValues = BackupValues(levelIndex, dataOut, 0, mode);
                 clearDataOut();
                 mode = Mode::LevelSelect;
             }
