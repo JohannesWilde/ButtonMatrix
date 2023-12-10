@@ -3,9 +3,6 @@
 #define __AVR_ATmega328P__
 #endif
 
-#include <avr/io.h>
-#include <util/delay.h>
-
 #include "ArduinoDrivers/ArduinoUno.hpp"
 #include "ArduinoDrivers/dummytypes.hpp"
 
@@ -17,6 +14,12 @@
 #include "ArduinoDrivers/buttonTimed.hpp"
 #include "ArduinoDrivers/simplePinAvr.hpp"
 #include "ArduinoDrivers/simplePinBit.hpp"
+
+#include "helpers/crc16.hpp"
+
+#include <avr/eeprom.h>
+#include <avr/io.h>
+#include <util/delay.h>
 
 #include <string.h>
 
@@ -408,6 +411,50 @@ struct BackupValues
     }
 };
 
+
+namespace Eeprom
+{
+
+typedef size_t Address;
+
+namespace Addresses
+{
+
+static Address constexpr backupValues = 0;
+
+static_assert(E2END >= (backupValues + sizeof(BackupValues) + 2 /* CRC */ - 1 /* index */));
+
+} // namespace Addresses
+
+
+void writeWithCrc(void const * const data, size_t const byteCount, Address const eepromAddress)
+{
+    Crc16Ibm3740 crc;
+    crc.process(static_cast<uint8_t const *>(data), byteCount);
+    uint16_t const crcValue = crc.get();
+
+    eeprom_write_block(data, (void *)(eepromAddress), byteCount);
+    eeprom_write_block(&crcValue, (void *)(eepromAddress + byteCount), 2);
+}
+
+
+bool readWithCrc(void * const data, size_t const byteCount, Address const eepromAddress)
+{
+    uint16_t crcValue = 0xffff;
+
+    eeprom_read_block(data, (void const *)(eepromAddress), byteCount);
+    eeprom_read_block(&crcValue, (void const *)(eepromAddress + byteCount), 2);
+
+    Crc16Ibm3740 crc;
+    crc.process(static_cast<uint8_t const *>(data), byteCount);
+
+    return (crc.get() == crcValue);
+}
+
+
+} // namespace Eeprom
+
+
 int main()
 {
     typedef ArduinoUno::pinC5 VccPeriphery;
@@ -433,8 +480,19 @@ int main()
 
     BackupValues backupValues(levelIndex, dataOut, buttonPresses);
 
+    bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
+    if (!readBack)
+    {
+        backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+        initializeDataOutToLevel(levelIndex);
+    }
+    else
+    {
+        levelIndex = backupValues.levelIndex;
+        buttonPresses = backupValues.buttonPresses;
+        memcpy(dataOut, backupValues.dataOut, 4);
+    }
 
-    initializeDataOutToLevel(levelIndex);
 
     while (true)
     {
@@ -443,6 +501,8 @@ int main()
         if (ButtonOnOff::isUpLong())
         {
             backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+
+            Eeprom::writeWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
 
             // turn off display
             clearDataOut();
@@ -454,8 +514,20 @@ int main()
                 ButtonOnOff::update();
             }
 
-            // restore display
-            memcpy(dataOut, backupValues.dataOut, 4);
+
+            bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
+            if (!readBack)
+            {
+                levelIndex = 0;
+                buttonPresses = 0;
+                initializeDataOutToLevel(levelIndex);
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+            }
+            else
+            {
+                // restore display
+                memcpy(dataOut, backupValues.dataOut, 4);
+            }
         }
 
 
