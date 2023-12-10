@@ -6,7 +6,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#include "ArduinoDrivers/arduinouno.hpp"
+#include "ArduinoDrivers/ArduinoUno.hpp"
 #include "ArduinoDrivers/dummytypes.hpp"
 
 #include "ArduinoDrivers/rslatch.hpp"
@@ -15,16 +15,58 @@
 
 #include "ArduinoDrivers/button.hpp"
 #include "ArduinoDrivers/buttonTimed.hpp"
+#include "ArduinoDrivers/simplePinAvr.hpp"
 #include "ArduinoDrivers/simplePinBit.hpp"
+
+#include <string.h>
+
+
+// https://stackoverflow.com/questions/6938219/how-to-check-whether-all-bytes-in-a-memory-block-are-zero
+template<size_t size>
+static int memvcmp(uint8_t const * memory, uint8_t const value)
+{
+    if (0 == size)
+    {
+        return 0;
+    }
+    else
+    {
+        int const firstByteComparison = memcmp(memory, &value, 1);
+        return (0 == firstByteComparison) ? memcmp(memory, memory + 1, size - 1) : firstByteComparison;
+    }
+}
+
 
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
 
-static uint8_t dataIn[4] = {0x00, 0x00, 0x00, 0x00};
-static uint8_t dataOut[4] = {0x00, 0x00, 0x00, 0x00};
+typedef RsLatch<DummyAvrPin1, ArduinoUno::pinC1, DummyAvrPin1> buttonsInLatcher;
+
+uint8_t constexpr shiftRegisterBitsCount = 32;
+static_assert(shiftRegisterBitsCount >= (matrixWidthAndHeight * matrixWidthAndHeight));
+
+typedef ParallelInShiftRegister74HC165<shiftRegisterBitsCount,
+                                       ArduinoUno::pinC3,
+                                       ArduinoUno::pinC2,
+                                       DummyAvrPin1,
+                                       ArduinoUno::pinC4,
+                                       DummyAvrPin1,
+                                       DummyAvrPin1> buttonsInShiftRegister;
+
+typedef ShiftRegister74HC595<shiftRegisterBitsCount,
+                             ArduinoUno::pinD2,
+                             ArduinoUno::pinD5,
+                             ArduinoUno::pinD4,
+                             ArduinoUno::pinD3,
+                             ArduinoUno::pinD6> ledsOutShiftRegister;
 
 uint8_t constexpr shortPressCount = 2;
 uint8_t constexpr longPressCount = 8;
+
+typedef ButtonTimed<Button<SimplePinAvrRead<ArduinoUno::D8, AvrInputOutput::InputPullup>, SimplePin::State::Zero>, shortPressCount, longPressCount> ButtonOnOff;
+
+static uint8_t dataIn[4] = {0x00, 0x00, 0x00, 0x00};
+static uint8_t dataOut[4] = {0x00, 0x00, 0x00, 0x00};
 
 template <uint8_t index>
 class Buttons;
@@ -88,6 +130,57 @@ template <> class Leds<23> : public SimpleOnOff<SimplePinBit<7, dataOut, 2>, led
 template <> class Leds<24> : public SimpleOnOff<SimplePinBit<0, dataOut, 3>, ledStateOn> {/* intentionally empty */};
 
 
+static uint8_t constexpr digits[16][3] = {
+    {0b10100111, 0b10010100, 0b01110010, }, // 0
+    {0b00100001, 0b10010100, 0b00010001, }, // 1
+    {0b10000111, 0b10011100, 0b01110000, }, // 2
+    {0b00100111, 0b10001100, 0b01110000, }, // 3
+    {0b00100001, 0b10011100, 0b01010010, }, // 4
+    {0b00100111, 0b00011100, 0b01110010, }, // 5
+    {0b10100111, 0b00011100, 0b01110010, }, // 6
+    {0b10000100, 0b10001000, 0b01110000, }, // 7
+    {0b10100111, 0b10011100, 0b01110010, }, // 8
+    {0b00100111, 0b10011100, 0b01110010, }, // 9
+    {0b10100101, 0b10011100, 0b01110010, }, // A
+    {0b10100111, 0b00011100, 0b01000010, }, // b
+    {0b10000111, 0b00010000, 0b01110010, }, // C
+    {0b10100111, 0b10011100, 0b00010000, }, // d
+    {0b10000111, 0b00011000, 0b01110010, }, // E
+    {0b10000100, 0b00011100, 0b01110010, }, // F
+};
+
+uint8_t constexpr levels[][4] = {
+    {0b00000000, 0b00010000, 0b00000000, 0b00000000},
+    {0b00010001, 0b00000000, 0b00010000, 0b00000001},
+    {0b01000000, 0b00010000, 0b00000100, 0b00000000},
+//    {0b, 0b, 0b, 0b},
+};
+uint8_t constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
+
+
+uint8_t incrementedLevelIndex(uint8_t const levelIndex)
+{
+    uint8_t modLevelIndex = levelIndex + 1;
+
+    if (numberOfLevels == modLevelIndex)
+    {
+        modLevelIndex = 0;
+    }
+
+    return modLevelIndex;
+}
+
+uint8_t decrementedLevelIndex(uint8_t const levelIndex)
+{
+    uint8_t modLevelIndex = numberOfLevels - 1;
+    if (0 != levelIndex)
+    {
+        modLevelIndex = levelIndex - 1;
+    }
+
+    return modLevelIndex;
+}
+
 // Template-Meta-Programming loop
 template<uint8_t Index, template<uint8_t I> class Wrapper, typename... Args>
 struct Loop
@@ -98,7 +191,7 @@ struct Loop
         Wrapper<Index>::impl(args...);
 
         //Recurse
-        Loop<Index - 1, Wrapper>::impl();
+        Loop<Index - 1, Wrapper, Args...>::impl(args...);
     }
 };
 
@@ -188,35 +281,140 @@ struct WrapperToggleNeighborReleasedAfterShort
     }
 };
 
+/* Never use this for actual HW buttons - but only for the update from a level input. */
+template<uint8_t Index>
+struct WrapperToggleNeighborIsDown
+{
+    static_assert((matrixWidthAndHeight * matrixWidthAndHeight) > Index);
+
+    static void impl()
+    {
+        if (Button<SimplePinBitRead<Index % 8, dataIn, Index / 8>, SimplePin::State::One>::isDown())
+        {
+            ToggleNeighbor<true, Index>::impl();
+            ToggleNeighbor<(0 != (Index % matrixWidthAndHeight)), static_cast<uint8_t>(Index - 1)>::impl();
+            ToggleNeighbor<((matrixWidthAndHeight - 1) != (Index % matrixWidthAndHeight)), (Index + 1)>::impl();
+            ToggleNeighbor<(matrixWidthAndHeight <= Index), static_cast<uint8_t>(Index - matrixWidthAndHeight)>::impl();
+            ToggleNeighbor<((matrixWidthAndHeight * (matrixWidthAndHeight - 1)) > Index), static_cast<uint8_t>(Index + matrixWidthAndHeight)>::impl();
+        }
+    }
+};
+
+static void initializeDataOutToLevel(uint8_t const levelIndex)
+{
+    static_assert(sizeof(dataIn) == sizeof(levels[0]));
+    memcpy(dataIn, levels[levelIndex], sizeof(dataIn));
+    memset(dataOut, 0, sizeof(dataOut));
+    Loop<24, WrapperToggleNeighborIsDown>::impl();
+}
+
+static void clearDataOut()
+{
+    memset(dataOut, 0, sizeof(dataOut));
+}
+
+static void displayDataOut()
+{
+    // Move data to the LED shiftRegister.
+    ledsOutShiftRegister::shiftInBits(dataOut);
+    // Apply the shifted-in bits to the output of the shift-registers.
+    ledsOutShiftRegister::showShiftRegister();
+}
+
+enum class Mode
+{
+    LevelSelect,
+    Game,
+    GameFinished
+};
+
+typedef Buttons< 24> ButtonMenu;
+typedef Buttons< 4> ButtonEscapeReset;
+typedef Buttons<19> ButtonUp;
+typedef Buttons< 9> ButtonDown;
+typedef Buttons<14> ButtonEnter;
+
+
+template <uint8_t index>
+class LedLevels;
+
+template <> class LedLevels<0> : public Leds<3> {};
+template <> class LedLevels<1> : public Leds<8> {};
+template <> class LedLevels<2> : public Leds<13> {};
+template <> class LedLevels<3> : public Leds<18> {};
+template <> class LedLevels<4> : public Leds<23> {};
+
+template<uint8_t Index>
+struct WrapperLedLevelsUpdate
+{
+    static_assert(matrixWidthAndHeight > Index);
+
+    static void impl(uint8_t const levelIndex)
+    {
+        if (Index <= (levelIndex / 0x10))
+        {
+            LedLevels<Index>::set(SimpleOnOffProperties::State::On);
+        }
+        else
+        {
+            LedLevels<Index>::set(SimpleOnOffProperties::State::Off);
+        }
+    }
+};
+
+template<uint8_t Index>
+struct WrapperCountButtonsReleasedAfterShort
+{
+    static_assert((matrixWidthAndHeight * matrixWidthAndHeight) > Index);
+
+    static void impl(uint8_t & count)
+    {
+        if (Buttons<Index>::releasedAfterShort())
+        {
+            ++count;
+        }
+    }
+};
+
+/* Never use this for actual HW buttons - but only for the update from a level input. */
+template<uint8_t Index>
+struct WrapperCountButtonsPressed_
+{
+    static_assert((matrixWidthAndHeight * matrixWidthAndHeight) > Index);
+
+    static void impl(uint8_t & count)
+    {
+        if (Button<SimplePinBitRead<Index % 8, dataIn, Index / 8>, SimplePin::State::One>::isDown())
+        {
+            ++count;
+        }
+    }
+};
+
+
+struct BackupValues
+{
+    uint8_t levelIndex;
+    uint8_t dataOut[4];
+    uint8_t buttonPresses;
+
+    BackupValues(uint8_t const levelIndex_,
+                 uint8_t const dataOut_[4],
+                 uint8_t const buttonPresses)
+        : levelIndex(levelIndex_)
+        , buttonPresses(buttonPresses)
+    {
+        memcpy(dataOut, dataOut_, sizeof(dataOut));
+    }
+};
 
 int main()
 {
-    typedef ArduinoUno arduinoUno;
-
-    typedef arduinoUno::pinC5 VccPeriphery;
+    typedef ArduinoUno::pinC5 VccPeriphery;
     VccPeriphery::setType(AvrInputOutput::OutputLow);
 
-    typedef RsLatch<DummyAvrPin1, arduinoUno::pinC1, DummyAvrPin1> buttonsInLatcher;
     buttonsInLatcher::initialize();
-
-    uint8_t constexpr shiftRegisterBitsCount = 32;
-    static_assert(shiftRegisterBitsCount >= (matrixWidthAndHeight * matrixWidthAndHeight));
-
-    typedef ParallelInShiftRegister74HC165<shiftRegisterBitsCount,
-            arduinoUno::pinC3,
-            arduinoUno::pinC2,
-            DummyAvrPin1,
-            arduinoUno::pinC4,
-            DummyAvrPin1,
-            DummyAvrPin1> buttonsInShiftRegister;
     buttonsInShiftRegister::initialize();
-
-    typedef ShiftRegister74HC595<shiftRegisterBitsCount,
-            arduinoUno::pinD2,
-            arduinoUno::pinD5,
-            arduinoUno::pinD4,
-            arduinoUno::pinD3,
-            arduinoUno::pinD6> ledsOutShiftRegister;
     ledsOutShiftRegister::initialize();
 
 
@@ -226,8 +424,41 @@ int main()
 
     Loop<24, WrapperInitialize>::impl();
 
+    ButtonOnOff::initialize();
+
+    // todo: save/load
+    Mode mode = Mode::Game;
+    uint8_t levelIndex = 0;
+    uint8_t buttonPresses = 0;
+
+    BackupValues backupValues(levelIndex, dataOut, buttonPresses);
+
+
+    initializeDataOutToLevel(levelIndex);
+
     while (true)
     {
+        ButtonOnOff::update();
+
+        if (ButtonOnOff::isUpLong())
+        {
+            backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+
+            // turn off display
+            clearDataOut();
+            displayDataOut();
+
+            while (ButtonOnOff::isUpLong())
+            {
+                // Todo: make the AVR sleep.
+                ButtonOnOff::update();
+            }
+
+            // restore display
+            memcpy(dataOut, backupValues.dataOut, 4);
+        }
+
+
         // Latch bits in shift-register for read-out from the buttons.
         buttonsInShiftRegister::loadParallelToShiftregister();
         // Reset latches in front of read-out-shiftregisters.
@@ -236,12 +467,128 @@ int main()
         buttonsInShiftRegister::shiftOutBits(dataIn);
 
         Loop<24, WrapperUpdate>::impl();
-        Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
 
-        // Move data to the LED shiftRegister.
-        ledsOutShiftRegister::shiftInBits(dataOut);
-        // Apply the shifted-in bits to the output of the shift-registers.
-        ledsOutShiftRegister::showShiftRegister();
+        switch (mode)
+        {
+        case Mode::LevelSelect:
+        {
+            if (ButtonUp::releasedAfterShort())
+            {
+                levelIndex = incrementedLevelIndex(levelIndex);
+            }
+            if (ButtonDown::releasedAfterShort())
+            {
+                levelIndex = decrementedLevelIndex(levelIndex);
+            }
+
+            if (ButtonEnter::releasedAfterShort())
+            {
+                mode = Mode::Game;
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+            }
+            else if (ButtonEscapeReset::releasedAfterShort())
+            {
+                memcpy(dataOut, backupValues.dataOut, 4);
+                levelIndex = backupValues.levelIndex;
+                buttonPresses = backupValues.buttonPresses;
+                mode = Mode::Game;
+            }
+            else
+            {
+                // Update level selection display.
+                memcpy(dataOut, digits[levelIndex % 0x10], 3);
+                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(levelIndex);
+            }
+
+            break;
+        }
+        case Mode::Game:
+        {
+            if (ButtonMenu::isDownLong())
+            {
+                mode = Mode::LevelSelect;
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+                clearDataOut();
+            }
+            else if (ButtonEscapeReset::isDownLong())
+            {
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+            }
+            else
+            {
+                uint8_t pressedButtonsCount = 0;
+                Loop<24, WrapperCountButtonsReleasedAfterShort, uint8_t &>::impl(pressedButtonsCount);
+
+                // Only update if any button pressed.
+                if (0 < pressedButtonsCount)
+                {
+                    // Don't overflow but top off at UINT8_MAX.
+                    if ((UINT8_MAX - buttonPresses) >= pressedButtonsCount)
+                    {
+                        buttonPresses += pressedButtonsCount;
+                    }
+                    else
+                    {
+                        buttonPresses = UINT8_MAX;
+                    }
+
+
+                    Loop<24, WrapperToggleNeighborReleasedAfterShort>::impl();
+
+                    if (0 == memvcmp<4>(dataOut, 0))
+                    {
+                        mode = Mode::GameFinished;
+                    }
+                }
+            }
+            break;
+        }
+        case Mode::GameFinished:
+        {
+            if (ButtonMenu::releasedAfterShort() || ButtonMenu::isDownLong())
+            {
+                // open menu
+                initializeDataOutToLevel(levelIndex);
+                backupValues = BackupValues(levelIndex, dataOut, 0);
+                clearDataOut();
+                mode = Mode::LevelSelect;
+            }
+            else if (ButtonEscapeReset::releasedAfterShort() || ButtonEscapeReset::isDownLong())
+            {
+                // restart level
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+                mode = Mode::Game;
+            }
+            else if (ButtonEnter::releasedAfterShort() || ButtonEnter::isDownLong())
+            {
+                // advance to next level
+                levelIndex = incrementedLevelIndex(levelIndex);
+                initializeDataOutToLevel(levelIndex);
+                buttonPresses = 0;
+                mode = Mode::Game;
+            }
+            else
+            {
+                // show the number of superfluous button presses
+                memcpy(dataIn, levels[levelIndex], sizeof(dataIn)); // misuse dataIn - it will be overwritten on next read-in from HW
+                uint8_t pressedButtonsCountForLevel = 0;
+                Loop<24, WrapperCountButtonsPressed_, uint8_t &>::impl(pressedButtonsCountForLevel);
+
+                uint8_t const buttonPressesDelta = buttonPresses - pressedButtonsCountForLevel;
+                // Update level selection display.
+                memcpy(dataOut, digits[buttonPressesDelta % 0x10], 3);
+                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(buttonPressesDelta);
+
+                Leds<14>::set(SimpleOnOffProperties::State::On);
+            }
+            break;
+        }
+        }
+
+        displayDataOut();
 
         // Wait some time as to not pull/push the shift-registers too often.
         _delay_ms(100);
