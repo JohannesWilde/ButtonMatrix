@@ -28,8 +28,12 @@ set(AVR_UPLOADTOOL_BAUDRATE 19200)
 # AVR and fuses needs to be set
 ##########################################################################
 set(AVR_MCU atmega328p)
-set(AVR_H_FUSE 0xd9)
-set(AVR_L_FUSE 0xc3)
+set(AVR_H_FUSE 0x7f)
+set(AVR_L_FUSE 0xd6)
+# set(AVR_E_FUSE 0xfd)
+
+# avrdude.exe -P COM5 -b 19200 -c avrisp -p atmega328p -U lfuse:w:0x7f:m -U hfuse:w:0xd6:m -U efuse:w:0xfd:m
+
 
 ### END TOOLCHAIN SETUP AREA #############################################
 
@@ -61,7 +65,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 ##########################################################################
 # needs to be defined for AVR toolchain
 ##########################################################################
-set(MCU_SPEED "16000000UL")
+set(MCU_SPEED "2000000UL")
 
 ##########################################################################
 # some cmake cross-compile necessities

@@ -3,9 +3,6 @@
 #define __AVR_ATmega328P__
 #endif
 
-#include <avr/io.h>
-#include <util/delay.h>
-
 #include "ArduinoDrivers/ArduinoUno.hpp"
 #include "ArduinoDrivers/dummytypes.hpp"
 
@@ -17,6 +14,14 @@
 #include "ArduinoDrivers/buttonTimed.hpp"
 #include "ArduinoDrivers/simplePinAvr.hpp"
 #include "ArduinoDrivers/simplePinBit.hpp"
+
+#include "helpers/crc16.hpp"
+
+#include <avr/eeprom.h>
+#include <avr/interrupt.h>
+#include <avr/io.h>
+#include <avr/sleep.h>
+#include <util/delay.h>
 
 #include <string.h>
 
@@ -397,21 +402,140 @@ struct BackupValues
     uint8_t levelIndex;
     uint8_t dataOut[4];
     uint8_t buttonPresses;
+    Mode mode;
 
     BackupValues(uint8_t const levelIndex_,
                  uint8_t const dataOut_[4],
-                 uint8_t const buttonPresses)
+                 uint8_t const buttonPresses,
+                 Mode const mode)
         : levelIndex(levelIndex_)
         , buttonPresses(buttonPresses)
+        , mode(mode)
     {
         memcpy(dataOut, dataOut_, sizeof(dataOut));
     }
 };
 
+
+namespace Eeprom
+{
+
+typedef size_t Address;
+
+namespace Addresses
+{
+
+static Address constexpr backupValues = 0;
+
+static_assert(E2END >= (backupValues + sizeof(BackupValues) + 2 /* CRC */ - 1 /* index */));
+
+} // namespace Addresses
+
+
+void writeWithCrc(void const * const data, size_t const byteCount, Address const eepromAddress)
+{
+    Crc16Ibm3740 crc;
+    crc.process(static_cast<uint8_t const *>(data), byteCount);
+    uint16_t const crcValue = crc.get();
+
+    eeprom_write_block(data, (void *)(eepromAddress), byteCount);
+    eeprom_write_block(&crcValue, (void *)(eepromAddress + byteCount), 2);
+}
+
+
+bool readWithCrc(void * const data, size_t const byteCount, Address const eepromAddress)
+{
+    uint16_t crcValue = 0xffff;
+
+    eeprom_read_block(data, (void const *)(eepromAddress), byteCount);
+    eeprom_read_block(&crcValue, (void const *)(eepromAddress + byteCount), 2);
+
+    Crc16Ibm3740 crc;
+    crc.process(static_cast<uint8_t const *>(data), byteCount);
+
+    return (crc.get() == crcValue);
+}
+
+
+} // namespace Eeprom
+
+
+
+
+typedef AvrInternalRegister<PCMSK0_REGISTER, uint8_t> PinChangeMask0;
+typedef AvrInternalRegister<PCICR_REGISTER, uint8_t> PinChangeInterruptControlRegister;
+
+// Interrupt Service Routine
+ISR (PCINT0_vect)
+{
+    // intentionally empty - only used for wakeup.
+}
+
+// Interrupt Service Routine for when Timer2 matches OCR2A.
+ISR (TIMER2_COMPA_vect)
+{
+    // intentionally empty - only used for wakeup.
+}
+
+void enableButtonOnOffInterrupt(bool const enable)
+{
+    if (enable)
+    {
+        // Enable pin 0 [PB0] in PCINT0.
+        PinChangeMask0::setBitMask(0x01);
+        // Enalbe PCINT0.
+        PinChangeInterruptControlRegister::setBitMask(0x01);
+        // enable interrupts
+        sei();
+    }
+    else
+    {
+        // Disable pin 0 [PB0] in PCINT0.
+        PinChangeMask0::clearBitMask(0x01);
+        // Enalbe PCINT0.
+        PinChangeInterruptControlRegister::clearBitMask(0x01);
+        // disable interrupts
+        cli();
+    }
+}
+
+/**
+ * @brief powerDown puts the microcontroller in SLEEP_MODE_PWR_SAVE.
+ */
+void powerDown()
+{
+    set_sleep_mode(SLEEP_MODE_PWR_SAVE);
+    sleep_mode (); // here the device is actually put to sleep!!
+}
+
+/**
+ * @brief powerOff puts the microcontroller in SLEEP_MODE_PWR_DOWN.
+ */
+void powerOff()
+{
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    sleep_mode (); // here the device is actually put to sleep!!
+}
+
+
 int main()
 {
     typedef ArduinoUno::pinC5 VccPeriphery;
     VccPeriphery::setType(AvrInputOutput::OutputLow);
+
+    cli(); // disable interrupts
+
+    // disable ADC conversions -> analogRead non-usable
+    ADCSRA = 0b00010000; // ADC Control and Status Register A: ADEN, ADSC, ADATE, ADIF, ADIE, ADPS2, ADPS1, ADPS0: ADC disable, ADIF cleared, ADC interrupts disabled
+    // disable Analog Comparator -> everything regarding analog measurements non-usable
+    ACSR = 0b10010000; // Analog Comparator Control and Statur Register: ACD, ACBG, ACO, ACI, ACIE, ACIC, ACIS1, ACIS0: AC disabled, ACI cleared, AC interrupts disabled
+
+    // this reconfigures TIMER2 - thus PWM [analogWrite] will not work as expected on Pins 3 and 11
+    TCCR2A = 0b00000010; // COM2A1, COM2A0, COM2B1, COM2B0, 0, 0, WGM21, WGM20: no output, CTC-mode
+    TCCR2B = 0b00000111; // FOC2A, FOC2B, 0, 0, WGM22, CS22, CS21, CS20: 1024 prescaler
+    OCR2A = 196; // Output compare register [196 * 1024 @ 2MHz = 100352us]
+    TIMSK2 = 0b00000010; // 0, 0, 0, 0, 0, OCIE2B, OCIE2A, TOIE2: Output Compare Match Interrupt Enable Timer2 A
+
 
     buttonsInLatcher::initialize();
     buttonsInShiftRegister::initialize();
@@ -431,10 +555,29 @@ int main()
     uint8_t levelIndex = 0;
     uint8_t buttonPresses = 0;
 
-    BackupValues backupValues(levelIndex, dataOut, buttonPresses);
+    BackupValues backupValues(levelIndex, dataOut, buttonPresses, mode);
 
+    bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
+    if (!readBack)
+    {
+        backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
+        initializeDataOutToLevel(levelIndex);
+    }
+    else
+    {
+        levelIndex = backupValues.levelIndex;
+        buttonPresses = backupValues.buttonPresses;
+        memcpy(dataOut, backupValues.dataOut, 4);
+        mode = backupValues.mode;
+    }
 
-    initializeDataOutToLevel(levelIndex);
+    // In case the OnOff button is turned to off during power-up, check until
+    // isUpLong() becomes true. This is so that the LEDs won't light up until
+    // the long-term button state is determined.
+    while (ButtonOnOff::isUp() && !ButtonOnOff::isUpLong())
+    {
+        ButtonOnOff::update();
+    }
 
     while (true)
     {
@@ -442,20 +585,40 @@ int main()
 
         if (ButtonOnOff::isUpLong())
         {
-            backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+            backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
+
+            Eeprom::writeWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
 
             // turn off display
             clearDataOut();
             displayDataOut();
 
-            while (ButtonOnOff::isUpLong())
+            enableButtonOnOffInterrupt(true);
+            while (ButtonOnOff::isUp())
             {
-                // Todo: make the AVR sleep.
+                powerOff();
                 ButtonOnOff::update();
             }
+            enableButtonOnOffInterrupt(false);
 
-            // restore display
-            memcpy(dataOut, backupValues.dataOut, 4);
+
+            bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
+            if (!readBack)
+            {
+                mode = Mode::Game;
+                levelIndex = 0;
+                buttonPresses = 0;
+                initializeDataOutToLevel(levelIndex);
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
+            }
+            else
+            {
+                // restore
+                levelIndex = backupValues.levelIndex;
+                buttonPresses = backupValues.buttonPresses;
+                memcpy(dataOut, backupValues.dataOut, 4);
+                mode = backupValues.mode;
+            }
         }
 
 
@@ -508,7 +671,7 @@ int main()
             if (ButtonMenu::isDownLong())
             {
                 mode = Mode::LevelSelect;
-                backupValues = BackupValues(levelIndex, dataOut, buttonPresses);
+                backupValues = BackupValues(levelIndex, dataOut, buttonPresses, mode);
                 clearDataOut();
             }
             else if (ButtonEscapeReset::isDownLong())
@@ -551,7 +714,7 @@ int main()
             {
                 // open menu
                 initializeDataOutToLevel(levelIndex);
-                backupValues = BackupValues(levelIndex, dataOut, 0);
+                backupValues = BackupValues(levelIndex, dataOut, 0, mode);
                 clearDataOut();
                 mode = Mode::LevelSelect;
             }
@@ -591,6 +754,8 @@ int main()
         displayDataOut();
 
         // Wait some time as to not pull/push the shift-registers too often.
-        _delay_ms(100);
+        // Use TIMER2_COMPA_vect for wakeup and wait in SLEEP_MODE_PWR_SAVE.
+        sei();
+        powerDown();
     }
 }
