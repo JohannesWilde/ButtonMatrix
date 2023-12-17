@@ -18,7 +18,9 @@
 #include "helpers/crc16.hpp"
 
 #include <avr/eeprom.h>
+#include <avr/interrupt.h>
 #include <avr/io.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 
 #include <string.h>
@@ -458,6 +460,57 @@ bool readWithCrc(void * const data, size_t const byteCount, Address const eeprom
 } // namespace Eeprom
 
 
+
+
+typedef AvrInternalRegister<PCMSK0_REGISTER, uint8_t> PinChangeMask0;
+typedef AvrInternalRegister<PCICR_REGISTER, uint8_t> PinChangeInterruptControlRegister;
+
+// Interrupt Service Routine
+ISR (PCINT0_vect)
+{
+    // intentionally empty - only used for wakeup.
+}
+
+void enableButtonOnOffInterrupt(bool const enable)
+{
+    if (enable)
+    {
+        // Enable pin 0 [PB0] in PCINT0.
+        PinChangeMask0::setBitMask(0x01);
+        // Enalbe PCINT0.
+        PinChangeInterruptControlRegister::setBitMask(0x01);
+        // enable interrupts
+        sei();
+    }
+    else
+    {
+        // Disable pin 0 [PB0] in PCINT0.
+        PinChangeMask0::clearBitMask(0x01);
+        // Enalbe PCINT0.
+        PinChangeInterruptControlRegister::clearBitMask(0x01);
+        // disable interrupts
+        cli();
+    }
+}
+
+/**
+ * @brief powerDown puts the microcontroller in SLEEP_MODE_PWR_SAVE.
+ */
+void powerDown()
+{
+    sleep_mode (); // here the device is actually put to sleep!!
+}
+
+/**
+ * @brief powerOff puts the microcontroller in SLEEP_MODE_PWR_DOWN.
+ */
+void powerOff()
+{
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    sleep_mode (); // here the device is actually put to sleep!!
+}
+
+
 int main()
 {
     typedef ArduinoUno::pinC5 VccPeriphery;
@@ -497,6 +550,14 @@ int main()
         mode = backupValues.mode;
     }
 
+    // In case the OnOff button is turned to off during power-up, check until
+    // isUpLong() becomes true. This is so that the LEDs won't light up until
+    // the long-term button state is determined.
+    while (ButtonOnOff::isUp() && !ButtonOnOff::isUpLong())
+    {
+        ButtonOnOff::update();
+    }
+
     while (true)
     {
         ButtonOnOff::update();
@@ -511,11 +572,9 @@ int main()
             clearDataOut();
             displayDataOut();
 
-            while (ButtonOnOff::isUpLong())
-            {
-                // Todo: make the AVR sleep.
-                ButtonOnOff::update();
-            }
+            enableButtonOnOffInterrupt(true);
+            powerOff();
+            enableButtonOnOffInterrupt(false);
 
 
             bool const readBack = Eeprom::readWithCrc(&backupValues, sizeof(BackupValues), Eeprom::Addresses::backupValues);
