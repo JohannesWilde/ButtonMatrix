@@ -498,6 +498,7 @@ void enableButtonOnOffInterrupt(bool const enable)
  */
 void powerDown()
 {
+    set_sleep_mode(SLEEP_MODE_PWR_SAVE);
     sleep_mode (); // here the device is actually put to sleep!!
 }
 
