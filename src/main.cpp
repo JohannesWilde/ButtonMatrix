@@ -471,6 +471,12 @@ ISR (PCINT0_vect)
     // intentionally empty - only used for wakeup.
 }
 
+// Interrupt Service Routine for when Timer2 matches OCR2A.
+ISR (TIMER2_COMPA_vect)
+{
+    // intentionally empty - only used for wakeup.
+}
+
 void enableButtonOnOffInterrupt(bool const enable)
 {
     if (enable)
@@ -517,10 +523,19 @@ int main()
     typedef ArduinoUno::pinC5 VccPeriphery;
     VccPeriphery::setType(AvrInputOutput::OutputLow);
 
+    cli(); // disable interrupts
+
     // disable ADC conversions -> analogRead non-usable
     ADCSRA = 0b00010000; // ADC Control and Status Register A: ADEN, ADSC, ADATE, ADIF, ADIE, ADPS2, ADPS1, ADPS0: ADC disable, ADIF cleared, ADC interrupts disabled
     // disable Analog Comparator -> everything regarding analog measurements non-usable
     ACSR = 0b10010000; // Analog Comparator Control and Statur Register: ACD, ACBG, ACO, ACI, ACIE, ACIC, ACIS1, ACIS0: AC disabled, ACI cleared, AC interrupts disabled
+
+    // this reconfigures TIMER2 - thus PWM [analogWrite] will not work as expected on Pins 3 and 11
+    TCCR2A = 0b00000010; // COM2A1, COM2A0, COM2B1, COM2B0, 0, 0, WGM21, WGM20: no output, CTC-mode
+    TCCR2B = 0b00000111; // FOC2A, FOC2B, 0, 0, WGM22, CS22, CS21, CS20: 1024 prescaler
+    OCR2A = 196; // Output compare register [196 * 1024 @ 2MHz = 100352us]
+    TIMSK2 = 0b00000010; // 0, 0, 0, 0, 0, OCIE2B, OCIE2A, TOIE2: Output Compare Match Interrupt Enable Timer2 A
+
 
     buttonsInLatcher::initialize();
     buttonsInShiftRegister::initialize();
@@ -739,6 +754,8 @@ int main()
         displayDataOut();
 
         // Wait some time as to not pull/push the shift-registers too often.
-        _delay_ms(100);
+        // Use TIMER2_COMPA_vect for wakeup and wait in SLEEP_MODE_PWR_SAVE.
+        sei();
+        powerDown();
     }
 }
