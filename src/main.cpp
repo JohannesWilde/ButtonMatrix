@@ -516,6 +516,11 @@ int main()
     typedef ArduinoUno::pinC5 VccPeriphery;
     VccPeriphery::setType(AvrInputOutput::OutputLow);
 
+    // disable ADC conversions -> analogRead non-usable
+    ADCSRA = 0b00010000; // ADC Control and Status Register A: ADEN, ADSC, ADATE, ADIF, ADIE, ADPS2, ADPS1, ADPS0: ADC disable, ADIF cleared, ADC interrupts disabled
+    // disable Analog Comparator -> everything regarding analog measurements non-usable
+    ACSR = 0b10010000; // Analog Comparator Control and Statur Register: ACD, ACBG, ACO, ACI, ACIE, ACIC, ACIS1, ACIS0: AC disabled, ACI cleared, AC interrupts disabled
+
     buttonsInLatcher::initialize();
     buttonsInShiftRegister::initialize();
     ledsOutShiftRegister::initialize();
