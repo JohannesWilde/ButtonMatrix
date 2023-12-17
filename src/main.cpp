@@ -573,7 +573,11 @@ int main()
             displayDataOut();
 
             enableButtonOnOffInterrupt(true);
-            powerOff();
+            while (ButtonOnOff::isUp())
+            {
+                powerOff();
+                ButtonOnOff::update();
+            }
             enableButtonOnOffInterrupt(false);
 
 
