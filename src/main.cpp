@@ -167,27 +167,51 @@ static uint8_t constexpr digits[16][3] = {
 //
 // { 0b 7 6 5 4 3 2 1 0, 0b 15 14 13 12 11 10 9 8, 0b 23 22 21 20 19 18 17 16, 0b 31 30 29 28 27 26 25 24 }
 //
-uint8_t constexpr levels[][4] = {
-    {0b00000000, 0b00010000, 0b00000000, 0b00000000}, // 0x00
-    {0b00000000, 0b01000000, 0b00000000, 0b00000000},
-    {0b00000001, 0b00000000, 0b00000000, 0b00000000},
-    {0b00000000, 0b01000100, 0b00000000, 0b00000000},
-    {0b01000000, 0b00000000, 0b00000100, 0b00000000},
-    {0b00000000, 0b00100000, 0b00000000, 0b00000001},
-    {0b00000000, 0b01100000, 0b00000000, 0b00000000},
-    {0b00000000, 0b00000000, 0b00000100, 0b00000001},
-    {0b01000000, 0b00010000, 0b00000000, 0b00000000},
-    {0b00000000, 0b00000000, 0b00000011, 0b00000000},
-    {0b00010001, 0b00000000, 0b00000000, 0b00000001},
-    {0b00010010, 0b00000000, 0b00001000, 0b00000000},
-    {0b10000000, 0b10000000, 0b10000000, 0b00000000},
-    {0b01000000, 0b00000000, 0b00000101, 0b00000000},
-    {0b00000000, 0b00010000, 0b10000010, 0b00000000},
-    {0b00000000, 0b00110000, 0b00000010, 0b00000000},
-    {0b10001000, 0b00001000, 0b00000000, 0b00000000}, // 0x10
-    // {0b00000000, 0b00000000, 0b00000000, 0b00000000},
-    // {0b00000000, 0b00000000, 0b00000000, 0b00000000},
 
+template <size_t byteOffset, size_t index, size_t... indices>
+static constexpr uint8_t createBitmaskToPress();
+
+template <size_t byteOffset>
+static constexpr uint8_t createBitmaskToPress()
+{
+    return 0;
+}
+
+template <size_t byteOffset, size_t index, size_t... indices>
+static constexpr uint8_t createBitmaskToPress()
+{
+    uint8_t value = 0;
+    size_t const byteIndex = index / CHAR_BIT;
+
+    static_assert(byteOffset == byteIndex);
+
+    size_t const bitIndex = index % CHAR_BIT;
+    value |= (0b1 << bitIndex);
+
+    value |= createBitmaskToPress<byteOffset, indices...>();
+    return value;
+}
+
+uint8_t constexpr levels[][4] = {
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()}, // 0x00
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 10, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 4>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 7>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 17, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12, 13>(), createBitmaskToPress<2, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 7>(), createBitmaskToPress<1, 11>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()}, // 0x10
+    // {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    // {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
 
     // {0b00010001, 0b00000000, 0b00010000, 0b00000001},
     // {0b01000000, 0b00010000, 0b00000100, 0b00000000},
