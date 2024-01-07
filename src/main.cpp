@@ -429,7 +429,10 @@ struct WrapperLedLevelsUpdate
 
     static void impl(uint8_t const levelIndex)
     {
-        if (Index <= (levelIndex / 0x10))
+        // Show number of single-digit overruns in binary-coded number.
+        uint8_t const levelIndexSingleDigitOverrun = (levelIndex / 0x10);
+        // Offset above number by 1, as to always have at least 1 LED lit up.
+        if (0 != ((0b1 << Index) & (levelIndexSingleDigitOverrun + 1)))
         {
             LedLevels<Index>::set(SimpleOnOffProperties::State::On);
         }
