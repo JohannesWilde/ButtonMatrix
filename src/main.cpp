@@ -621,22 +621,12 @@ bool levelSelectorLongPressDurationActive(uint8_t const levelSelectorLongPressDu
     case 21:
         // fall through
     case 24:
-        // fall through
-    case 27:
-        // fall through
-    case 29:
-        // fall through
-    case 31:
-        // fall through
-    case 33:
-        // fall through
-    case 35:
     {
         return true;
     }
     default:
     {
-        return (37 <= levelSelectorLongPressDuration);
+        return ((27 <= levelSelectorLongPressDuration) && (0 == (levelSelectorLongPressDuration % 2)));
     }
     }
 }
