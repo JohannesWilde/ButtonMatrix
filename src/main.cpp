@@ -41,6 +41,15 @@ static int memvcmp(uint8_t const * memory, uint8_t const value)
     }
 }
 
+uint8_t incrementUint8Capped(uint8_t const value)
+{
+    uint8_t newValue = value;
+    if (newValue < UCHAR_MAX)
+    {
+        ++newValue;
+    }
+    return newValue;
+}
 
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
@@ -594,6 +603,45 @@ void powerOff()
 }
 
 
+bool levelSelectorLongPressDurationActive(uint8_t const levelSelectorLongPressDuration)
+{
+    // ramp up selection speed
+    switch (levelSelectorLongPressDuration)
+    {
+    case 0:
+        // fall through
+    case 5:
+        // fall through
+    case 10:
+        // fall through
+    case 14:
+        // fall through
+    case 18:
+        // fall through
+    case 21:
+        // fall through
+    case 24:
+        // fall through
+    case 27:
+        // fall through
+    case 29:
+        // fall through
+    case 31:
+        // fall through
+    case 33:
+        // fall through
+    case 35:
+    {
+        return true;
+    }
+    default:
+    {
+        return (37 <= levelSelectorLongPressDuration);
+    }
+    }
+}
+
+
 int main()
 {
     typedef ArduinoUno::pinC5 VccPeriphery;
@@ -711,13 +759,40 @@ int main()
         {
         case Mode::LevelSelect:
         {
-            if (ButtonUp::releasedAfterShort())
+            static uint8_t levelSelectorLongPressDuration = 0;
+            if (ButtonUp::isDown() && ButtonDown::isDown())
             {
-                levelIndex = incrementedLevelIndex(levelIndex);
+                // Do nothing if both up and down are pressed.
+                levelSelectorLongPressDuration = 0;
             }
-            if (ButtonDown::releasedAfterShort())
+            else if (ButtonUp::isDownLong())
             {
-                levelIndex = decrementedLevelIndex(levelIndex);
+                levelSelectorLongPressDuration = incrementUint8Capped(levelSelectorLongPressDuration);
+                if (levelSelectorLongPressDurationActive(levelSelectorLongPressDuration))
+                {
+                    levelIndex = incrementedLevelIndex(levelIndex);
+                }
+            }
+            else if (ButtonDown::isDownLong())
+            {
+                levelSelectorLongPressDuration = incrementUint8Capped(levelSelectorLongPressDuration);
+                if (levelSelectorLongPressDurationActive(levelSelectorLongPressDuration))
+                {
+                    levelIndex = decrementedLevelIndex(levelIndex);
+                }
+            }
+            else
+            {
+                levelSelectorLongPressDuration = 0;
+
+                if (ButtonUp::releasedAfterShort())
+                {
+                    levelIndex = incrementedLevelIndex(levelIndex);
+                }
+                if (ButtonDown::releasedAfterShort())
+                {
+                    levelIndex = decrementedLevelIndex(levelIndex);
+                }
             }
 
             if (ButtonEnter::releasedAfterShort())
@@ -725,6 +800,7 @@ int main()
                 mode = Mode::Game;
                 initializeDataOutToLevel(levelIndex);
                 buttonPresses = 0;
+                levelSelectorLongPressDuration = 0;
             }
             else if (ButtonEscapeReset::releasedAfterShort())
             {
@@ -732,6 +808,7 @@ int main()
                 levelIndex = backupValues.levelIndex;
                 buttonPresses = backupValues.buttonPresses;
                 mode = Mode::Game;
+                levelSelectorLongPressDuration = 0;
             }
             else
             {
