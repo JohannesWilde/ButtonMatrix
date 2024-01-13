@@ -3,10 +3,10 @@
 rowCountAndColumnCount = 5
 
 def toggle(value):
-    if 0 == value:
-        value = 1
+    if "▯" == value:
+        value = "▮"
     else:
-        value = 0
+        value = "▯"
     return value
 
 def toggleButtonAndNeighbors(button, matrix):
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         for button in buttons:
             assert 0 <= button < (rowCountAndColumnCount * rowCountAndColumnCount)
 
-        matrix = [0, ] * (rowCountAndColumnCount * rowCountAndColumnCount)
+        matrix = ["▯", ] * (rowCountAndColumnCount * rowCountAndColumnCount)
 
         for button in buttons:
             toggleButtonAndNeighbors(button, matrix)
