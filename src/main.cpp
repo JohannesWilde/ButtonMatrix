@@ -251,13 +251,17 @@ uint8_t constexpr levels[][4] = {
     {createBitmaskToPress<0, 1, 4>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 16, 17>(), createBitmaskToPress<3>()},
     {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3>()},
     {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 9, 11, 13>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()}, // 0x30
-    // {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
-    // {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
-    // {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
-
-    // {0b00010001, 0b00000000, 0b00010000, 0b00000001},
-    // {0b01000000, 0b00010000, 0b00000100, 0b00000000},
-//    {0b, 0b, 0b, 0b},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 9, 11, 13>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 9, 11>(), createBitmaskToPress<2, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 3>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9, 10, 15>(), createBitmaskToPress<2, 17, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 6>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 11, 14, 15>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6, 7>(), createBitmaskToPress<1, 12, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 7>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 17, 18, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 17, 18>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 10, 12, 15>(), createBitmaskToPress<2, 20, 23>(), createBitmaskToPress<3, 24>()},
 };
 uint8_t constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
 
