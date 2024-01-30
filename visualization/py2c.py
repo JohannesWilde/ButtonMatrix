@@ -1,12 +1,14 @@
 # This script shall visualize the resulting pattern from the input button presses.
 
 rowCountAndColumnCount = 5
+symbolOff = "▯"
+symbolOn = "▮"
 
 def toggle(value):
-    if "▯" == value:
-        value = "▮"
+    if symbolOff == value:
+        value = symbolOn
     else:
-        value = "▯"
+        value = symbolOff
     return value
 
 def toggleButtonAndNeighbors(button, matrix):
