@@ -77,18 +77,19 @@ if __name__ == "__main__":
 
     solutions = []
     for level, lights, matrix in matrices:
-        solution = solveLightsOff(matrix)
-        solutions.append((level, lights, matrix, solution))
-
-    for level, lights, matrix, solution in solutions:
         print("-----------------------------------")
         print(f"level {level}\n")
         printMatrix2d(matrix)
+
+        solution = solveLightsOff(matrix)
+        solutions.append((level, lights, matrix, solution))
+
         print()
         print(f"({level}, {tuple(solution)}),")
         print()
     print("-----------------------------------")
     print()  # newline
+
 
     # for level, lights, matrix, solution in solutions:
     #     print(f"({level}, {tuple(solution)}),")
