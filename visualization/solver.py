@@ -3,9 +3,13 @@
 from py2c import rowCountAndColumnCount, toggleButtonAndNeighbors, printMatrix2d, symbolOn, symbolOff
 
 def solveLightsOff(matrix):
-    buttonsPressedToReturn = ()
+    buttonsPressedToReturn = None
     dimension = rowCountAndColumnCount * rowCountAndColumnCount
     terminate = False
+
+    if all(symbol == symbolOff for symbol in matrix):
+        buttonsPressedToReturn = ()
+        terminate = True
 
     for maxNumberOfButtonPresses in range(1, dimension + 1, 1):
         if terminate:
