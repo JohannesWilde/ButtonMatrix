@@ -124,7 +124,7 @@ if __name__ == "__main__":
     )
 
     matrices = []
-    for level, lights in lightss:
+    for level, lights in (lightss[-1], ):
         for light in lights:
             assert 0 <= light < (rowCountAndColumnCount * rowCountAndColumnCount)
 
