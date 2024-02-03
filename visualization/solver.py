@@ -85,7 +85,10 @@ if __name__ == "__main__":
         solutions.append((level, lights, matrix, solution))
 
         print()
-        print(f"({level}, {tuple(solution)}),")
+        if solution is not None:
+            print(f"        ({level}, {tuple(solution)}),")
+        else:
+            print(f"        ({level}, {solution}),")
         print()
     print("-----------------------------------")
     print()  # newline
