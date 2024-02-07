@@ -20,6 +20,7 @@
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <avr/pgmspace.h>
 #include <avr/sleep.h>
 #include <util/delay.h>
 
@@ -144,7 +145,7 @@ template <> class Leds<23> : public SimpleOnOff<SimplePinBit<7, dataOut, 2>, led
 template <> class Leds<24> : public SimpleOnOff<SimplePinBit<0, dataOut, 3>, ledStateOn> {/* intentionally empty */};
 
 
-static uint8_t constexpr digits[16][3] = {
+static uint8_t constexpr digits[16][3] PROGMEM = {
     {0b10100111, 0b10010100, 0b01110010, }, // 0
     {0b00100001, 0b10010100, 0b00010001, }, // 1
     {0b10000111, 0b10011100, 0b01110000, }, // 2
@@ -162,6 +163,17 @@ static uint8_t constexpr digits[16][3] = {
     {0b10000111, 0b00011000, 0b01110010, }, // E
     {0b10000100, 0b00011100, 0b01110010, }, // F
 };
+
+static void readSingleDigitToDataOut(uint8_t const digit)
+{
+    uint8_t const singleDigit = digit % 0x10;
+
+    // Read level button presses to dataIn.
+    for (size_t index = 0; index < 3; ++index)
+    {
+        dataOut[index] = pgm_read_byte_near(digits[singleDigit] + index);
+    }
+}
 
 // Freely taken from https://1lights.thebluesky.net/ - private use only.
 //        __________________
@@ -201,7 +213,7 @@ static constexpr uint8_t createBitmaskToPress()
     return value;
 }
 
-uint8_t constexpr levels[][4] = {
+static uint8_t constexpr levels[][4] PROGMEM = {
     {createBitmaskToPress<0>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()}, // 0x00, beginner
     {createBitmaskToPress<0>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
     {createBitmaskToPress<0, 0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
@@ -704,11 +716,23 @@ struct WrapperToggleNeighborIsDown
     }
 };
 
-static void initializeDataOutToLevel(LevelIndex const levelIndex)
+static void readLevelToDataIn(LevelIndex const levelIndex)
 {
     static_assert(sizeof(dataIn) == sizeof(levels[0]));
-    memcpy(dataIn, levels[levelIndex], sizeof(dataIn));
+
+    // Read level button presses to dataIn.
+    for (size_t index = 0; index < 4; ++index)
+    {
+        dataIn[index] = pgm_read_byte_near(levels[levelIndex] + index);
+    }
+}
+
+static void initializeDataOutToLevel(LevelIndex const levelIndex)
+{
+    readLevelToDataIn(levelIndex);
+    // Clear the output.
     memset(dataOut, 0, sizeof(dataOut));
+    // Now generate initial level by evaluating the "virtual" button presses.
     Loop<24, WrapperToggleNeighborIsDown>::impl();
 }
 
@@ -1128,7 +1152,7 @@ int main()
             else
             {
                 // Update level selection display.
-                memcpy(dataOut, digits[levelIndex % 0x10], 3);
+                readSingleDigitToDataOut(levelIndex);
                 Loop<4, WrapperLedLevelsUpdate, LevelIndex>::impl(levelIndex);
             }
 
@@ -1204,13 +1228,13 @@ int main()
             else
             {
                 // show the number of superfluous button presses
-                memcpy(dataIn, levels[levelIndex], sizeof(dataIn)); // misuse dataIn - it will be overwritten on next read-in from HW
+                readLevelToDataIn(levelIndex); // misuse dataIn - it will be overwritten on next read-in from HW
                 uint8_t pressedButtonsCountForLevel = 0;
                 Loop<24, WrapperCountButtonsPressed_, uint8_t &>::impl(pressedButtonsCountForLevel);
 
                 uint8_t const buttonPressesDelta = buttonPresses - pressedButtonsCountForLevel;
                 // Update level selection display.
-                memcpy(dataOut, digits[buttonPressesDelta % 0x10], 3);
+                readSingleDigitToDataOut(buttonPressesDelta);
                 Loop<4, WrapperLedLevelsUpdate, LevelIndex>::impl(buttonPressesDelta);
 
                 Leds<14>::set(SimpleOnOffProperties::State::On);
