@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 3.14)
 ##########################################################################
 set(AVR_UPLOADTOOL avrdude)
 set(AVR_PROGRAMMER avrisp)
-set(AVR_UPLOADTOOL_PORT /dev/ttyUSB0)
+set(AVR_UPLOADTOOL_PORT COM4)
 set(AVR_UPLOADTOOL_BAUDRATE 19200)
 
 ##########################################################################

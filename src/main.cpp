@@ -20,6 +20,7 @@
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <avr/pgmspace.h>
 #include <avr/sleep.h>
 #include <util/delay.h>
 
@@ -41,6 +42,15 @@ static int memvcmp(uint8_t const * memory, uint8_t const value)
     }
 }
 
+uint8_t incrementUint8Capped(uint8_t const value)
+{
+    uint8_t newValue = value;
+    if (newValue < UCHAR_MAX)
+    {
+        ++newValue;
+    }
+    return newValue;
+}
 
 
 static uint8_t constexpr matrixWidthAndHeight = 5;
@@ -135,7 +145,7 @@ template <> class Leds<23> : public SimpleOnOff<SimplePinBit<7, dataOut, 2>, led
 template <> class Leds<24> : public SimpleOnOff<SimplePinBit<0, dataOut, 3>, ledStateOn> {/* intentionally empty */};
 
 
-static uint8_t constexpr digits[16][3] = {
+static uint8_t constexpr digits[16][3] PROGMEM = {
     {0b10100111, 0b10010100, 0b01110010, }, // 0
     {0b00100001, 0b10010100, 0b00010001, }, // 1
     {0b10000111, 0b10011100, 0b01110000, }, // 2
@@ -154,18 +164,419 @@ static uint8_t constexpr digits[16][3] = {
     {0b10000100, 0b00011100, 0b01110010, }, // F
 };
 
-uint8_t constexpr levels[][4] = {
-    {0b00000000, 0b00010000, 0b00000000, 0b00000000},
-    {0b00010001, 0b00000000, 0b00010000, 0b00000001},
-    {0b01000000, 0b00010000, 0b00000100, 0b00000000},
-//    {0b, 0b, 0b, 0b},
-};
-uint8_t constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
-
-
-uint8_t incrementedLevelIndex(uint8_t const levelIndex)
+static void readSingleDigitToDataOut(uint8_t const digit)
 {
-    uint8_t modLevelIndex = levelIndex + 1;
+    uint8_t const singleDigit = digit % 0x10;
+
+    // Read level button presses to dataIn.
+    for (size_t index = 0; index < 3; ++index)
+    {
+        dataOut[index] = pgm_read_byte_near(digits[singleDigit] + index);
+    }
+}
+
+// Freely taken from https://1lights.thebluesky.net/ - private use only.
+//        __________________
+//        | 24 23 22 21 20 |
+//        | 19 18 17 16 15 |
+//        | 14 13 12 11 10 |
+//        |  9  8  7  6  5 |
+// 0/1 -> |  4  3  2  1  0 |
+//        ------------   ---
+//                    USB
+// corresponds to
+//
+// { 0b 7 6 5 4 3 2 1 0, 0b 15 14 13 12 11 10 9 8, 0b 23 22 21 20 19 18 17 16, 0b 31 30 29 28 27 26 25 24 }
+//
+
+template <size_t byteOffset, size_t index, size_t... indices>
+static constexpr uint8_t createBitmaskToPress();
+
+template <size_t byteOffset>
+static constexpr uint8_t createBitmaskToPress()
+{
+    return 0;
+}
+
+template <size_t byteOffset, size_t index, size_t... indices>
+static constexpr uint8_t createBitmaskToPress()
+{
+    uint8_t value = 0;
+    size_t const byteIndex = index / CHAR_BIT;
+
+    static_assert(byteOffset == byteIndex);
+
+    size_t const bitIndex = index % CHAR_BIT;
+    value |= (0b1 << bitIndex);
+
+    value |= createBitmaskToPress<byteOffset, indices...>();
+    return value;
+}
+
+static uint8_t constexpr levels[][4] PROGMEM = {
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()}, // 0x00, beginner
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 10, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4>(), createBitmaskToPress<1>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 4>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 7>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 17, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 12, 13>(), createBitmaskToPress<2, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 7>(), createBitmaskToPress<1, 11>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()}, // 0x10
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 8, 9, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 11, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 10, 12>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 7>(), createBitmaskToPress<1, 11, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 8>(), createBitmaskToPress<2, 16>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 16>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 18, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 6>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9, 12, 14>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 17, 19>(), createBitmaskToPress<3>()}, // 0x20
+    {createBitmaskToPress<0, 7>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 17, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9>(), createBitmaskToPress<2, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 5>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 4>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 10, 11, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5, 6, 7>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 17, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0>(), createBitmaskToPress<1, 8, 13>(), createBitmaskToPress<2, 17, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 7>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 17, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4>(), createBitmaskToPress<1, 14, 15>(), createBitmaskToPress<2, 16, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2>(), createBitmaskToPress<1, 11, 13>(), createBitmaskToPress<2, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 4>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 16, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 9, 11, 13>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()}, // 0x30
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 9, 11, 13>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 9, 11>(), createBitmaskToPress<2, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 3>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9, 10, 15>(), createBitmaskToPress<2, 17, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 6>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 11, 14, 15>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6, 7>(), createBitmaskToPress<1, 12, 14>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 7>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 21, 22>(), createBitmaskToPress<3, 24>()}, // intermediate
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 17, 18, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 17, 18>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 10, 12, 15>(), createBitmaskToPress<2, 20, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1>(), createBitmaskToPress<1, 9, 10, 12>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 9, 11, 12, 14>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 5, 6>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 16, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 16>(), createBitmaskToPress<3>()}, // 0x40
+    {createBitmaskToPress<0, 2, 4, 5, 6>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 8, 10, 13>(), createBitmaskToPress<2, 18, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 5, 7>(), createBitmaskToPress<1, 12, 15>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 7>(), createBitmaskToPress<1, 12, 15>(), createBitmaskToPress<2, 18, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 19, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2, 6, 7>(), createBitmaskToPress<1, 8, 14>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 13, 14>(), createBitmaskToPress<2, 17, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 17, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 18, 19, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0>(), createBitmaskToPress<1, 8, 10, 15>(), createBitmaskToPress<2, 17, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 17, 18, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 6>(), createBitmaskToPress<1, 15>(), createBitmaskToPress<2, 17, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 4>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2>(), createBitmaskToPress<1, 10, 14>(), createBitmaskToPress<2, 16, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 8, 13>(), createBitmaskToPress<2, 16, 21, 22>(), createBitmaskToPress<3>()}, // 0x50
+    {createBitmaskToPress<0, 1, 2>(), createBitmaskToPress<1, 8, 11, 12>(), createBitmaskToPress<2, 16>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 3, 7>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 16, 17, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 3, 4, 7>(), createBitmaskToPress<1, 8, 13>(), createBitmaskToPress<2, 17, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 6>(), createBitmaskToPress<1, 14, 15>(), createBitmaskToPress<2, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 7>(), createBitmaskToPress<1, 8, 10, 13, 14>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2, 7>(), createBitmaskToPress<1, 11, 13>(), createBitmaskToPress<2, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 17, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 3, 6>(), createBitmaskToPress<1, 10, 11, 12>(), createBitmaskToPress<2, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5, 6>(), createBitmaskToPress<1, 11, 15>(), createBitmaskToPress<2, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 10, 13, 14>(), createBitmaskToPress<2, 18, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 5>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 16, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 5>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 16, 19, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4>(), createBitmaskToPress<1, 8, 11>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 5, 7>(), createBitmaskToPress<1>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3, 24>()}, // 0x60
+    {createBitmaskToPress<0, 4>(), createBitmaskToPress<1, 8, 9, 13>(), createBitmaskToPress<2, 16, 17, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 4, 5, 6, 7>(), createBitmaskToPress<1, 10, 11>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 7>(), createBitmaskToPress<1, 8, 13>(), createBitmaskToPress<2, 19, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0>(), createBitmaskToPress<1, 9, 14, 15>(), createBitmaskToPress<2, 18, 19, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 3>(), createBitmaskToPress<1, 8, 10>(), createBitmaskToPress<2, 17, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4, 7>(), createBitmaskToPress<1, 10, 14>(), createBitmaskToPress<2, 17, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 7>(), createBitmaskToPress<1, 11>(), createBitmaskToPress<2, 17, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2, 7>(), createBitmaskToPress<1, 9, 12, 13, 15>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 9, 10, 12, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 3>(), createBitmaskToPress<1, 11, 15>(), createBitmaskToPress<2, 16, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 6>(), createBitmaskToPress<1, 13, 14>(), createBitmaskToPress<2, 16, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 3>(), createBitmaskToPress<1, 8>(), createBitmaskToPress<2, 16, 17, 20, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 15>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1>(), createBitmaskToPress<1, 8, 11, 12>(), createBitmaskToPress<2, 19, 20, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 3, 7>(), createBitmaskToPress<1, 9>(), createBitmaskToPress<2, 17, 18, 19, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 7>(), createBitmaskToPress<1, 8, 10, 13>(), createBitmaskToPress<2, 19, 20>(), createBitmaskToPress<3>()}, // 0x70
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 9, 10, 14>(), createBitmaskToPress<2, 17, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 6, 7>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 19, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 4, 7>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 19, 20, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6, 7>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 4>(), createBitmaskToPress<1, 12>(), createBitmaskToPress<2, 17, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 5>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 17, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 6>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 16, 18, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 7>(), createBitmaskToPress<1, 11, 15>(), createBitmaskToPress<2, 16, 17, 19, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 5, 6>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 16, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 5>(), createBitmaskToPress<1, 10, 15>(), createBitmaskToPress<2, 16, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 5>(), createBitmaskToPress<1, 8, 13, 14, 15>(), createBitmaskToPress<2, 16, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 6>(), createBitmaskToPress<1, 8, 14>(), createBitmaskToPress<2, 16, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 3, 5>(), createBitmaskToPress<1, 10, 12, 14>(), createBitmaskToPress<2, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 8, 10, 11, 12, 13>(), createBitmaskToPress<2, 17>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 5, 7>(), createBitmaskToPress<1, 9, 12>(), createBitmaskToPress<2, 18, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2, 4, 6, 7>(), createBitmaskToPress<1, 8, 10, 11>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3>()}, // 0x80
+    {createBitmaskToPress<0, 0, 3, 4>(), createBitmaskToPress<1, 9, 10, 12, 14>(), createBitmaskToPress<2, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 3, 4, 7>(), createBitmaskToPress<1, 8>(), createBitmaskToPress<2, 17, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 3, 5>(), createBitmaskToPress<1, 11, 12, 15>(), createBitmaskToPress<2, 17, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 5>(), createBitmaskToPress<1, 10, 12, 15>(), createBitmaskToPress<2, 16, 17, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 5, 6, 7>(), createBitmaskToPress<1, 11, 13>(), createBitmaskToPress<2, 16, 20, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 5, 7>(), createBitmaskToPress<1, 14>(), createBitmaskToPress<2, 16, 18, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6>(), createBitmaskToPress<1, 8, 13, 14>(), createBitmaskToPress<2, 16, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 3, 4, 7>(), createBitmaskToPress<1, 14, 15>(), createBitmaskToPress<2, 16, 17, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3, 4, 7>(), createBitmaskToPress<1, 8>(), createBitmaskToPress<2, 18, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4, 7>(), createBitmaskToPress<1, 9, 11>(), createBitmaskToPress<2, 17, 18, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 4, 7>(), createBitmaskToPress<1, 8, 10, 11, 12, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 6>(), createBitmaskToPress<1, 12, 13, 15>(), createBitmaskToPress<2, 18, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3>(), createBitmaskToPress<1, 8, 9, 10, 11, 12>(), createBitmaskToPress<2, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 2, 3, 6>(), createBitmaskToPress<1, 9, 10, 12, 13>(), createBitmaskToPress<2, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3>(), createBitmaskToPress<1, 9, 12, 14>(), createBitmaskToPress<2, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 3, 5, 7>(), createBitmaskToPress<1, 10, 11>(), createBitmaskToPress<2, 16, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 6>(), createBitmaskToPress<1, 9, 10, 15>(), createBitmaskToPress<2, 17, 18, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 5>(), createBitmaskToPress<1, 9, 10, 11>(), createBitmaskToPress<2, 17, 18, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 6>(), createBitmaskToPress<1, 11, 13>(), createBitmaskToPress<2, 16, 19, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 4, 5>(), createBitmaskToPress<1, 10>(), createBitmaskToPress<2, 18, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4, 6, 7>(), createBitmaskToPress<1, 9>(), createBitmaskToPress<2, 16, 17, 19, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 5, 7>(), createBitmaskToPress<1, 9>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2>(), createBitmaskToPress<1, 8, 9, 14>(), createBitmaskToPress<2, 16, 17, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 5, 7>(), createBitmaskToPress<1, 13, 15>(), createBitmaskToPress<2, 20, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 5, 7>(), createBitmaskToPress<1, 8, 11, 14, 15>(), createBitmaskToPress<2, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 5, 6>(), createBitmaskToPress<1, 9, 13>(), createBitmaskToPress<2, 17, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 3, 5>(), createBitmaskToPress<1, 8, 11>(), createBitmaskToPress<2, 17, 19, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 3>(), createBitmaskToPress<1, 10, 11, 14, 15>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 6, 7>(), createBitmaskToPress<1, 9, 14>(), createBitmaskToPress<2, 16, 17, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4>(), createBitmaskToPress<1, 13>(), createBitmaskToPress<2, 16, 18, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 19, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 7>(), createBitmaskToPress<1, 8, 11, 12, 13>(), createBitmaskToPress<2, 16, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 5, 6>(), createBitmaskToPress<1, 9, 12, 13, 14>(), createBitmaskToPress<2, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 4, 5>(), createBitmaskToPress<1, 8, 9, 13>(), createBitmaskToPress<2, 17>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 19, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 5, 6, 7>(), createBitmaskToPress<1, 8, 10, 15>(), createBitmaskToPress<2, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5>(), createBitmaskToPress<1, 8, 9, 10, 13>(), createBitmaskToPress<2, 17, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 6>(), createBitmaskToPress<1, 11, 14>(), createBitmaskToPress<2, 17, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 5>(), createBitmaskToPress<1, 8, 10, 11, 12, 13, 14, 15>(), createBitmaskToPress<2>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5>(), createBitmaskToPress<1, 12, 13, 15>(), createBitmaskToPress<2, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 7>(), createBitmaskToPress<1, 8, 10, 13, 15>(), createBitmaskToPress<2, 17, 19, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 4, 7>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 16, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 9, 10, 13, 15>(), createBitmaskToPress<2, 16, 17, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4, 6>(), createBitmaskToPress<1, 8, 9, 13>(), createBitmaskToPress<2, 16, 17, 18, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 6, 7>(), createBitmaskToPress<1, 9, 14>(), createBitmaskToPress<2, 16, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4>(), createBitmaskToPress<1, 8, 9>(), createBitmaskToPress<2, 16, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 7>(), createBitmaskToPress<1, 10, 12, 13, 15>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 4, 7>(), createBitmaskToPress<1, 12, 13, 14, 15>(), createBitmaskToPress<2, 16, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4>(), createBitmaskToPress<1, 12, 15>(), createBitmaskToPress<2, 17, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 4, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 5>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 17, 19, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 4, 6>(), createBitmaskToPress<1, 9, 10>(), createBitmaskToPress<2, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 11, 14>(), createBitmaskToPress<2, 17, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 7>(), createBitmaskToPress<1, 9, 11, 14>(), createBitmaskToPress<2, 18, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 6>(), createBitmaskToPress<1, 8, 10, 11, 12, 15>(), createBitmaskToPress<2, 17, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5>(), createBitmaskToPress<1, 10, 12, 14, 15>(), createBitmaskToPress<2, 17, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 3, 6>(), createBitmaskToPress<1, 8, 9, 11, 12, 14>(), createBitmaskToPress<2, 16, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 5>(), createBitmaskToPress<1, 9, 13, 14>(), createBitmaskToPress<2, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 3, 5, 6>(), createBitmaskToPress<1, 9, 10, 12>(), createBitmaskToPress<2, 16, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 4, 6>(), createBitmaskToPress<1, 8, 10, 12, 13>(), createBitmaskToPress<2, 16, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 6, 7>(), createBitmaskToPress<1, 9, 12>(), createBitmaskToPress<2, 16, 17, 18, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 5>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 16, 17, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 7>(), createBitmaskToPress<1, 9, 10, 11, 12>(), createBitmaskToPress<2, 16, 17, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 7>(), createBitmaskToPress<1, 8, 11, 13, 15>(), createBitmaskToPress<2, 17, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 6, 7>(), createBitmaskToPress<1, 10, 13, 15>(), createBitmaskToPress<2, 17, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 3, 5, 6, 7>(), createBitmaskToPress<1, 8, 9, 12>(), createBitmaskToPress<2, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 4, 5, 6>(), createBitmaskToPress<1, 8, 11, 12>(), createBitmaskToPress<2, 16, 18, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 6>(), createBitmaskToPress<1, 8, 10, 11, 12, 14>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5>(), createBitmaskToPress<1, 8, 9, 10, 12, 13>(), createBitmaskToPress<2, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 3, 4, 6>(), createBitmaskToPress<1, 9, 12>(), createBitmaskToPress<2, 16, 18, 19, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4>(), createBitmaskToPress<1, 8, 9, 11, 12, 13>(), createBitmaskToPress<2, 19, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1, 10, 11, 12, 15>(), createBitmaskToPress<2, 16, 19, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 6>(), createBitmaskToPress<1, 8, 10, 12>(), createBitmaskToPress<2, 16, 18, 20, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 3>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 17, 19, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6>(), createBitmaskToPress<1, 8, 12, 15>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 3, 4, 5>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 16, 18, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1, 9, 12, 14>(), createBitmaskToPress<2, 16, 18, 19, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 7>(), createBitmaskToPress<1, 8, 9, 10, 12, 13>(), createBitmaskToPress<2, 16, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 16, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14, 15>(), createBitmaskToPress<2, 17, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4>(), createBitmaskToPress<1, 8, 10, 12>(), createBitmaskToPress<2, 16, 18, 20, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6, 7>(), createBitmaskToPress<1, 9, 11, 12, 15>(), createBitmaskToPress<2, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5>(), createBitmaskToPress<1, 8, 10, 11, 15>(), createBitmaskToPress<2, 18, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 6>(), createBitmaskToPress<1, 9, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 7>(), createBitmaskToPress<1, 8, 10, 13, 14, 15>(), createBitmaskToPress<2, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 9>(), createBitmaskToPress<2, 16, 17, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 5, 6, 7>(), createBitmaskToPress<1, 10, 14, 15>(), createBitmaskToPress<2, 16, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 5, 7>(), createBitmaskToPress<1, 10, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 6, 7>(), createBitmaskToPress<1, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 21, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 6, 7>(), createBitmaskToPress<1, 11, 13>(), createBitmaskToPress<2, 16, 17, 18, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 11, 12>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 15>(), createBitmaskToPress<2, 16, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6>(), createBitmaskToPress<1, 8, 10>(), createBitmaskToPress<2, 16, 18, 19, 20, 21, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 8, 13, 14, 15>(), createBitmaskToPress<2, 18, 19, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 6>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 18, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 3, 6>(), createBitmaskToPress<1, 11, 12, 15>(), createBitmaskToPress<2, 18, 19, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3>(), createBitmaskToPress<1, 8, 9, 10, 11, 12, 15>(), createBitmaskToPress<2, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3, 6>(), createBitmaskToPress<1, 8, 9, 10, 11, 12>(), createBitmaskToPress<2, 17, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4>(), createBitmaskToPress<1, 9, 12>(), createBitmaskToPress<2, 16, 17, 18, 19, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 13, 14, 15>(), createBitmaskToPress<2, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 4, 6>(), createBitmaskToPress<1, 10, 14, 15>(), createBitmaskToPress<2, 16, 18, 19, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 7>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 16, 18, 20, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 14>(), createBitmaskToPress<2, 16, 19, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 3, 6>(), createBitmaskToPress<1, 8, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 2, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 13>(), createBitmaskToPress<2, 16, 18, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1>(), createBitmaskToPress<1, 8, 9, 12, 14, 15>(), createBitmaskToPress<2, 16, 19, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1>(), createBitmaskToPress<1, 8, 11, 12, 14, 15>(), createBitmaskToPress<2, 17, 18, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 3, 5, 7>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 3, 4, 6, 7>(), createBitmaskToPress<1, 12, 14, 15>(), createBitmaskToPress<2, 18, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6, 7>(), createBitmaskToPress<1, 12, 13>(), createBitmaskToPress<2, 18, 19, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 3, 4, 6, 7>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 16, 18, 19, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6>(), createBitmaskToPress<1, 8, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 4, 6>(), createBitmaskToPress<1, 8, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 2, 3, 4, 6>(), createBitmaskToPress<1, 9, 12>(), createBitmaskToPress<2, 16, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 7>(), createBitmaskToPress<1, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 9, 11, 13>(), createBitmaskToPress<2, 16, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 7>(), createBitmaskToPress<1, 8, 9, 10>(), createBitmaskToPress<2, 16, 19, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 9, 14>(), createBitmaskToPress<2, 16, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 7>(), createBitmaskToPress<1, 8, 10, 11, 15>(), createBitmaskToPress<2, 16, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 6, 7>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 16, 18, 20, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 2, 4, 6, 7>(), createBitmaskToPress<1, 8, 13, 14>(), createBitmaskToPress<2, 16, 18, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 1, 2, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 13>(), createBitmaskToPress<2, 17, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 6>(), createBitmaskToPress<1, 8, 12, 13, 14, 15>(), createBitmaskToPress<2, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 3, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 16, 18, 19, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6, 7>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 3, 6>(), createBitmaskToPress<1, 8, 10, 12, 14>(), createBitmaskToPress<2, 17, 18, 20, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5, 6>(), createBitmaskToPress<1, 9, 10, 12, 15>(), createBitmaskToPress<2, 16, 18, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 6, 7>(), createBitmaskToPress<1, 8, 12, 13, 14, 15>(), createBitmaskToPress<2, 18, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6, 7>(), createBitmaskToPress<1, 9, 10, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5, 7>(), createBitmaskToPress<1, 8, 9, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 8, 10, 11>(), createBitmaskToPress<2, 17, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 5, 6, 7>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 13>(), createBitmaskToPress<2, 16, 18, 20, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 7>(), createBitmaskToPress<1, 8, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 6>(), createBitmaskToPress<1, 8, 9, 12, 15>(), createBitmaskToPress<2, 16, 18, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6>(), createBitmaskToPress<1, 8, 10, 11>(), createBitmaskToPress<2, 16, 17, 18, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 6, 7>(), createBitmaskToPress<1, 8, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 17, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 19, 20, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6, 7>(), createBitmaskToPress<1, 8, 12, 13, 14>(), createBitmaskToPress<2, 18, 19, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6>(), createBitmaskToPress<1, 8, 10, 12, 13>(), createBitmaskToPress<2, 16, 17, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 12, 15>(), createBitmaskToPress<2, 16, 18, 19, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 6>(), createBitmaskToPress<1, 8, 12, 15>(), createBitmaskToPress<2, 17, 18, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 6>(), createBitmaskToPress<1, 8, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 19, 20, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 6>(), createBitmaskToPress<1, 10, 11, 12>(), createBitmaskToPress<2, 16, 17, 18, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 6>(), createBitmaskToPress<1, 9, 10, 12, 15>(), createBitmaskToPress<2, 16, 17, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3>(), createBitmaskToPress<1, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 6, 7>(), createBitmaskToPress<1, 8, 12>(), createBitmaskToPress<2, 16, 18, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6>(), createBitmaskToPress<1, 8, 10, 11, 12, 13, 15>(), createBitmaskToPress<2, 18, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 14, 15>(), createBitmaskToPress<2, 16, 17, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 6>(), createBitmaskToPress<1, 8, 9, 11, 14>(), createBitmaskToPress<2, 16, 18, 19, 20, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 6, 7>(), createBitmaskToPress<1, 11, 12>(), createBitmaskToPress<2, 16, 18, 19, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 11, 13>(), createBitmaskToPress<2, 16, 18, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 11, 12, 13>(), createBitmaskToPress<2, 16, 17, 20, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 17, 18, 19, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 6, 7>(), createBitmaskToPress<1, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5>(), createBitmaskToPress<1, 8, 9, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 11, 12, 14>(), createBitmaskToPress<2, 16, 18, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 6>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 17, 18, 19, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 3, 4, 6>(), createBitmaskToPress<1, 8, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2>(), createBitmaskToPress<1, 8, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 16, 18, 19, 21, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 7>(), createBitmaskToPress<1, 8, 9, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 13>(), createBitmaskToPress<2, 16, 18, 19, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 6>(), createBitmaskToPress<1, 8, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 13>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 2, 3, 5, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 10, 12>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 2, 4, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 14>(), createBitmaskToPress<2, 16, 18, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 14>(), createBitmaskToPress<2, 17, 18, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 6, 7>(), createBitmaskToPress<1, 8, 10, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 5, 6, 7>(), createBitmaskToPress<1, 10, 12, 14>(), createBitmaskToPress<2, 16, 18, 19, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 4, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 13, 14, 15>(), createBitmaskToPress<2, 16, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 5, 6>(), createBitmaskToPress<1, 8, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 5, 6, 7>(), createBitmaskToPress<1, 8, 11, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 20, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 6>(), createBitmaskToPress<1, 8, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 20, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 6>(), createBitmaskToPress<1, 8, 12, 15>(), createBitmaskToPress<2, 16, 17, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 6>(), createBitmaskToPress<1, 8, 12, 13, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 19>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 10, 12, 15>(), createBitmaskToPress<2, 16, 17, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 2, 6>(), createBitmaskToPress<1, 8, 11, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 20>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 1, 2, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 3, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 8, 9, 10, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 20>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6>(), createBitmaskToPress<1, 8, 11, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 19, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6>(), createBitmaskToPress<1, 8, 10, 11, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 20, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6>(), createBitmaskToPress<1, 8, 10, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 19, 20, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 11, 12>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6, 7>(), createBitmaskToPress<1, 8, 10, 11, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6>(), createBitmaskToPress<1, 8, 9, 10, 11, 12, 13>(), createBitmaskToPress<2, 16, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 5, 6>(), createBitmaskToPress<1, 8, 9, 12>(), createBitmaskToPress<2, 16, 18, 20, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 5, 6, 7>(), createBitmaskToPress<1, 8, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 10, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 6, 7>(), createBitmaskToPress<1, 8, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 6>(), createBitmaskToPress<1, 8, 9, 11, 12, 14>(), createBitmaskToPress<2, 16, 17, 18, 19>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6>(), createBitmaskToPress<1, 8, 9, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6, 7>(), createBitmaskToPress<1, 8, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 20, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 4, 6>(), createBitmaskToPress<1, 8, 9, 12, 14>(), createBitmaskToPress<2, 16, 18, 19, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6>(), createBitmaskToPress<1, 8, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 19, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 21, 22, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 4, 6>(), createBitmaskToPress<1, 8, 9, 12, 14, 15>(), createBitmaskToPress<2, 16, 17, 18, 21>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6>(), createBitmaskToPress<1, 8, 9, 12, 13, 14>(), createBitmaskToPress<2, 16, 17, 18, 21, 22>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6, 7>(), createBitmaskToPress<1, 8, 10, 11, 12>(), createBitmaskToPress<2, 16, 18, 19, 20, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 5, 6>(), createBitmaskToPress<1, 8, 11, 12, 15>(), createBitmaskToPress<2, 16, 17, 18, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 5, 6, 7>(), createBitmaskToPress<1, 8, 9, 12, 13, 15>(), createBitmaskToPress<2, 16, 18, 20, 21, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 4, 6>(), createBitmaskToPress<1, 8, 9, 12, 13, 14, 15>(), createBitmaskToPress<2, 16, 18, 21, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 6, 7>(), createBitmaskToPress<1, 8, 10, 11, 12, 15>(), createBitmaskToPress<2, 16, 18, 19, 21>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 4, 6, 7>(), createBitmaskToPress<1, 8, 10, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 4, 5, 6, 7>(), createBitmaskToPress<1, 8, 12, 13>(), createBitmaskToPress<2, 16, 18, 19, 21, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 5, 6, 7>(), createBitmaskToPress<1, 8, 9, 11, 12>(), createBitmaskToPress<2, 16, 18, 21, 23>(), createBitmaskToPress<3, 24>()},
+    {createBitmaskToPress<0, 0, 1, 3, 4, 5, 6>(), createBitmaskToPress<1, 8, 11, 12, 13, 15>(), createBitmaskToPress<2, 16, 17, 18, 22>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 2, 3, 6>(), createBitmaskToPress<1, 8, 9, 10, 12>(), createBitmaskToPress<2, 16, 17, 18, 20, 22, 23>(), createBitmaskToPress<3>()},
+    {createBitmaskToPress<0, 0, 1, 6, 7>(), createBitmaskToPress<1, 8, 9, 10, 12, 14, 15>(), createBitmaskToPress<2, 16, 18, 19, 23>(), createBitmaskToPress<3, 24>()},
+};
+typedef uint16_t LevelIndex;
+LevelIndex constexpr numberOfLevels = sizeof(levels) / sizeof(levels[0]);
+
+
+LevelIndex incrementedLevelIndex(LevelIndex const levelIndex)
+{
+    LevelIndex modLevelIndex = levelIndex + 1;
 
     if (numberOfLevels == modLevelIndex)
     {
@@ -175,9 +586,9 @@ uint8_t incrementedLevelIndex(uint8_t const levelIndex)
     return modLevelIndex;
 }
 
-uint8_t decrementedLevelIndex(uint8_t const levelIndex)
+LevelIndex decrementedLevelIndex(LevelIndex const levelIndex)
 {
-    uint8_t modLevelIndex = numberOfLevels - 1;
+    LevelIndex modLevelIndex = numberOfLevels - 1;
     if (0 != levelIndex)
     {
         modLevelIndex = levelIndex - 1;
@@ -305,11 +716,23 @@ struct WrapperToggleNeighborIsDown
     }
 };
 
-static void initializeDataOutToLevel(uint8_t const levelIndex)
+static void readLevelToDataIn(LevelIndex const levelIndex)
 {
     static_assert(sizeof(dataIn) == sizeof(levels[0]));
-    memcpy(dataIn, levels[levelIndex], sizeof(dataIn));
+
+    // Read level button presses to dataIn.
+    for (size_t index = 0; index < 4; ++index)
+    {
+        dataIn[index] = pgm_read_byte_near(levels[levelIndex] + index);
+    }
+}
+
+static void initializeDataOutToLevel(LevelIndex const levelIndex)
+{
+    readLevelToDataIn(levelIndex);
+    // Clear the output.
     memset(dataOut, 0, sizeof(dataOut));
+    // Now generate initial level by evaluating the "virtual" button presses.
     Loop<24, WrapperToggleNeighborIsDown>::impl();
 }
 
@@ -352,11 +775,12 @@ template <> class LedLevels<4> : public Leds<23> {};
 template<uint8_t Index>
 struct WrapperLedLevelsUpdate
 {
-    static_assert(matrixWidthAndHeight > Index);
-
-    static void impl(uint8_t const levelIndex)
+    static void impl(LevelIndex const levelIndex)
     {
-        if (Index <= (levelIndex / 0x10))
+        // Show number of single-digit overruns in binary-coded number.
+        LevelIndex const levelIndexSingleDigitOverrun = (levelIndex / 0x10);
+        // Offset above number by 1, as to always have at least 1 LED lit up.
+        if (0 != ((0b1 << Index) & (levelIndexSingleDigitOverrun + 1)))
         {
             LedLevels<Index>::set(SimpleOnOffProperties::State::On);
         }
@@ -399,12 +823,12 @@ struct WrapperCountButtonsPressed_
 
 struct BackupValues
 {
-    uint8_t levelIndex;
+    LevelIndex levelIndex;
     uint8_t dataOut[4];
     uint8_t buttonPresses;
     Mode mode;
 
-    BackupValues(uint8_t const levelIndex_,
+    BackupValues(LevelIndex const levelIndex_,
                  uint8_t const dataOut_[4],
                  uint8_t const buttonPresses,
                  Mode const mode)
@@ -518,6 +942,45 @@ void powerOff()
 }
 
 
+bool levelSelectorLongPressDurationActive(uint8_t const levelSelectorLongPressDuration)
+{
+    // ramp up selection speed
+    switch (levelSelectorLongPressDuration)
+    {
+    case 0:
+        // fall through
+    case 5:
+        // fall through
+    case 10:
+        // fall through
+    case 14:
+        // fall through
+    case 18:
+        // fall through
+    case 21:
+        // fall through
+    case 24:
+        // fall through
+    case 27:
+        // fall through
+    case 29:
+        // fall through
+    case 31:
+        // fall through
+    case 33:
+        // fall through
+    case 35:
+    {
+        return true;
+    }
+    default:
+    {
+        return (37 <= levelSelectorLongPressDuration);
+    }
+    }
+}
+
+
 int main()
 {
     typedef ArduinoUno::pinC5 VccPeriphery;
@@ -552,7 +1015,7 @@ int main()
 
     // todo: save/load
     Mode mode = Mode::Game;
-    uint8_t levelIndex = 0;
+    LevelIndex levelIndex = 0;
     uint8_t buttonPresses = 0;
 
     BackupValues backupValues(levelIndex, dataOut, buttonPresses, mode);
@@ -635,13 +1098,40 @@ int main()
         {
         case Mode::LevelSelect:
         {
-            if (ButtonUp::releasedAfterShort())
+            static uint8_t levelSelectorLongPressDuration = 0;
+            if (ButtonUp::isDown() && ButtonDown::isDown())
             {
-                levelIndex = incrementedLevelIndex(levelIndex);
+                // Do nothing if both up and down are pressed.
+                levelSelectorLongPressDuration = 0;
             }
-            if (ButtonDown::releasedAfterShort())
+            else if (ButtonUp::isDownLong())
             {
-                levelIndex = decrementedLevelIndex(levelIndex);
+                levelSelectorLongPressDuration = incrementUint8Capped(levelSelectorLongPressDuration);
+                if (levelSelectorLongPressDurationActive(levelSelectorLongPressDuration))
+                {
+                    levelIndex = incrementedLevelIndex(levelIndex);
+                }
+            }
+            else if (ButtonDown::isDownLong())
+            {
+                levelSelectorLongPressDuration = incrementUint8Capped(levelSelectorLongPressDuration);
+                if (levelSelectorLongPressDurationActive(levelSelectorLongPressDuration))
+                {
+                    levelIndex = decrementedLevelIndex(levelIndex);
+                }
+            }
+            else
+            {
+                levelSelectorLongPressDuration = 0;
+
+                if (ButtonUp::releasedAfterShort())
+                {
+                    levelIndex = incrementedLevelIndex(levelIndex);
+                }
+                if (ButtonDown::releasedAfterShort())
+                {
+                    levelIndex = decrementedLevelIndex(levelIndex);
+                }
             }
 
             if (ButtonEnter::releasedAfterShort())
@@ -649,6 +1139,7 @@ int main()
                 mode = Mode::Game;
                 initializeDataOutToLevel(levelIndex);
                 buttonPresses = 0;
+                levelSelectorLongPressDuration = 0;
             }
             else if (ButtonEscapeReset::releasedAfterShort())
             {
@@ -656,12 +1147,13 @@ int main()
                 levelIndex = backupValues.levelIndex;
                 buttonPresses = backupValues.buttonPresses;
                 mode = Mode::Game;
+                levelSelectorLongPressDuration = 0;
             }
             else
             {
                 // Update level selection display.
-                memcpy(dataOut, digits[levelIndex % 0x10], 3);
-                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(levelIndex);
+                readSingleDigitToDataOut(levelIndex);
+                Loop<4, WrapperLedLevelsUpdate, LevelIndex>::impl(levelIndex);
             }
 
             break;
@@ -736,14 +1228,14 @@ int main()
             else
             {
                 // show the number of superfluous button presses
-                memcpy(dataIn, levels[levelIndex], sizeof(dataIn)); // misuse dataIn - it will be overwritten on next read-in from HW
+                readLevelToDataIn(levelIndex); // misuse dataIn - it will be overwritten on next read-in from HW
                 uint8_t pressedButtonsCountForLevel = 0;
                 Loop<24, WrapperCountButtonsPressed_, uint8_t &>::impl(pressedButtonsCountForLevel);
 
                 uint8_t const buttonPressesDelta = buttonPresses - pressedButtonsCountForLevel;
                 // Update level selection display.
-                memcpy(dataOut, digits[buttonPressesDelta % 0x10], 3);
-                Loop<4, WrapperLedLevelsUpdate, uint8_t>::impl(buttonPressesDelta);
+                readSingleDigitToDataOut(buttonPressesDelta);
+                Loop<4, WrapperLedLevelsUpdate, LevelIndex>::impl(buttonPressesDelta);
 
                 Leds<14>::set(SimpleOnOffProperties::State::On);
             }
