@@ -4,6 +4,7 @@ CMakeLists.txt.user
 
 ### Python files ###
 .idea
+__pycache__
 
 ### LaTeX files ###
 ## Core latex/pdflatex auxiliary files:
