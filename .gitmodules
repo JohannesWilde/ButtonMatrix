@@ -3,4 +3,4 @@
 	url = ../ArduinoDrivers.git
 [submodule "src/helpers"]
 	path = src/helpers
-	url = ssh://git@dwarfy:2289/arduino/helpers.git
+	url = ../helpers.git
